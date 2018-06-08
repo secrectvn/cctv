@@ -1,0 +1,10 @@
+#!/bin/bash
+installationDirectory="/home/Shinobi"
+if [ -e "$installationDirectory/INSTALL/installed.txt" ]; then
+    echo "Starting Shinobi"
+    pm2 start $installationDirectory/camera.js
+    pm2 start $installationDirectory/cron.js
+fi
+if [ ! -e "$installationDirectory/INSTALL/installed.txt" ]; then
+    chmod +x $installationDirectory/INSTALL/now.sh&&INSTALL/now.sh
+fi

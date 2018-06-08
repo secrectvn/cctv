@@ -1,0 +1,45 @@
+<script src="/libs/js/socket.io.js"></script>
+<script src="/libs/js/jquery.min.js"></script>
+<!--Socket.IO Connection-->
+<script>
+    var socket = null
+    socket = io();
+    socket.on('connect',function(){
+        console.log('socket connected')
+        //pretend this is the command you use to initiate getting H.264 (MPEG) data
+        socket.emit('f',{function:'getStream',feed:'1'})
+        socket.emit('f',{function:'getStream',feed:'2'})
+    })
+</script>
+<!--Special JSMPEG-->
+<!--
+<script src="/libs/js/jsmpeg.pipe.js"></script>
+<canvas id="canvas_jsmpeg" height=500 width=500></canvas>
+<script>
+    // initiate a player that can be piped to.
+    var player = new JSMpeg.Player('pipe',{
+        canvas:document.getElementById('canvas_jsmpeg')
+    });
+    //on data from "h264" handle
+    socket.on('h264_1', function (data) {
+        // `data.buffer` is the raw video data from FFMPEG
+        // pretend you are getting data as follows
+        // var data = {buffer:ArrayBuffer}
+        player.write(data.buffer)
+    });
+</script>
+-->
+<!--H264 Live Player-->
+<script type="text/javascript" src="/Player/broadway/h264liveplayer/http-live-player.js">;</script>
+<canvas id="canvas_h264_live_player" height=500 width=500></canvas>
+<script>
+    // initiate a player that can be piped to.
+    var wsavc = new WSAvcPlayer(document.getElementById('canvas_h264_live_player'), "webgl", 1, 35);
+    wsavc.initCanvas(500,500)
+    wsavc.connect();
+    socket.on('h264_2', function (data) {
+        // pretend you are getting data as follows
+        // data = {buffer:ArrayBuffer}
+        wsavc.write(data)
+    });
+</script>
