@@ -10,9 +10,7 @@ var spawn = require('child_process').spawn;
 var config=require('./conf.json');
 
 //set option defaults
-s={
-    utcOffset : moment().utcOffset()
-};
+s={};
 if(config.cron===undefined)config.cron={};
 if(config.cron.deleteOld===undefined)config.cron.deleteOld=true;
 if(config.cron.deleteOrphans===undefined)config.cron.deleteOrphans=false;
@@ -25,7 +23,6 @@ if(config.cron.deleteFileBins===undefined)config.cron.deleteFileBins=true;
 if(config.cron.interval===undefined)config.cron.interval=1;
 if(config.databaseType===undefined){config.databaseType='mysql'}
 if(config.databaseLogs===undefined){config.databaseLogs=false}
-if(config.useUTC===undefined){config.useUTC=false}
 
 if(!config.ip||config.ip===''||config.ip.indexOf('0.0.0.0')>-1)config.ip='localhost';
 if(!config.videosDir)config.videosDir=__dirname+'/videos/';
@@ -129,12 +126,6 @@ s.dir={
 s.moment=function(e,x){
     if(!e){e=new Date};if(!x){x='YYYY-MM-DDTHH-mm-ss'};
     return moment(e).format(x);
-}
-s.utcToLocal = function(time){
-    return moment.utc(time).utcOffset(s.utcOffset).format()
-}
-s.localToUtc = function(time){
-    return moment(time).utc()
 }
 s.nameToTime=function(x){x=x.replace('.webm','').replace('.mp4','').split('T'),x[1]=x[1].replace(/-/g,':');x=x.join(' ');return x;}
 io = require('socket.io-client')('ws://'+config.ip+':'+config.port);//connect to master
@@ -269,18 +260,12 @@ s.deleteRowsWithNoVideo=function(v,callback){
             if(evs&&evs[0]){
                 es.del=[];es.ar=[v.ke];
                 evs.forEach(function(ev){
-                    var details = JSON.parse(ev.details)
-                    var filename = ev.time
-                    var dir = s.getVideoDirectory(ev)+s.moment(filename)+'.'+ev.ext;
-                    var fileExists = fs.existsSync(dir)
-                    if(details.isUTC === true){
-                        filename = s.localToUtc(filename).format('YYYY-MM-DDTHH-mm-ss')
-                        dir = s.getVideoDirectory(ev)+filename+'.'+ev.ext;
-                        fileExists = fs.existsSync(dir)
-                    }
-                    if(fileExists !== true){
+                    ev.dir=s.getVideoDirectory(ev)+s.moment(ev.time)+'.'+ev.ext;
+                    if(fs.existsSync(ev.dir)!==true){
                         s.video('delete',ev)
-                        s.tx({f:'video_delete',filename:filename+'.'+ev.ext,mid:ev.mid,ke:ev.ke,time:ev.time,end:s.moment(new Date,'YYYY-MM-DD HH:mm:ss')},'GRP_'+ev.ke);
+                        es.del.push('(mid=? AND time=?)');
+                        es.ar.push(ev.mid),es.ar.push(ev.time);
+                        s.tx({f:'video_delete',filename:s.moment(ev.time)+'.'+ev.ext,mid:ev.mid,ke:ev.ke,time:ev.time,end:s.moment(new Date,'YYYY-MM-DD HH:mm:ss')},'GRP_'+ev.ke);
                     }
                 });
                 if(es.del.length>0){
@@ -417,7 +402,6 @@ s.processUser = function(number,rows){
         //no user object given
         return
     }
-    console.log(v)
     if(!s.alreadyDeletedRowsWithNoVideosOnStart[v.ke]){
         s.alreadyDeletedRowsWithNoVideosOnStart[v.ke]=false;
     }
@@ -431,9 +415,6 @@ s.processUser = function(number,rows){
         //days to keep videos
         if(!v.d.days||v.d.days==''){v.d.days=5}else{v.d.days=parseFloat(v.d.days)};
         s.sqlQuery('SELECT * FROM Monitors WHERE ke=?', [v.ke], function(err,rr) {
-            if(!v.d.filters||v.d.filters==''){
-                v.d.filters={};
-            }
             rr.forEach(function(b,m){
                 b.details=JSON.parse(b.details);
                 if(b.details.max_keep_days&&b.details.max_keep_days!==''){
@@ -462,15 +443,10 @@ s.processUser = function(number,rows){
                 }
             })
             s.deleteOldLogs(v,function(){
-                console.log('deleteOldLogs')
                 s.deleteOldFileBins(v,function(){
-                    console.log('deleteOldFileBins')
                     s.deleteOldEvents(v,function(){
-                        console.log('deleteOldEvents')
                         s.checkFilterRules(v,function(){
-                            console.log('checkFilterRules')
                             s.deleteRowsWithNoVideo(v,function(){
-                                console.log('deleteRowsWithNoVideo')
                                 s.checkForOrphanedFiles(v,function(){
                                     //done user, unlock current, and do next
                                     s.overlapLock[v.ke]=false;
@@ -482,8 +458,6 @@ s.processUser = function(number,rows){
                 })
             })
         })
-    }else{
-        s.processUser(number+1,rows)
     }
 }
 //recursive function

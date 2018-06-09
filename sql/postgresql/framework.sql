@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS Monitors (
   name varchar(50) DEFAULT NULL,
   shto text,
   shfr text,
-  details text,
+  details longtext,
   type varchar(50) DEFAULT 'jpeg',
   ext varchar(50) DEFAULT 'webm',
   protocol varchar(50) DEFAULT 'http',
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS Users (
   auth varchar(50) DEFAULT NULL,
   mail varchar(100) DEFAULT NULL,
   pass varchar(100) DEFAULT NULL,
-  details text,
+  details longtext,
   CONSTRAINT mail UNIQUE  (mail)
 ) ;
 

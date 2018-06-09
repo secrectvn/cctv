@@ -1067,7 +1067,6 @@ s.video=function(x,e,k){
                                 if(s.group[e.ke].usedSpace>(s.group[e.ke].sizeLimit*config.cron.deleteOverMaxOffset)){
                                         s.sqlQuery('SELECT * FROM Videos WHERE status != 0 AND details NOT LIKE \'%"archived":"1"%\' AND ke=? ORDER BY `time` ASC LIMIT 2',[e.ke],function(err,evs){
                                             k.del=[];k.ar=[e.ke];
-                                            if(!evs)return console.log(err)
                                             evs.forEach(function(ev){
                                                 ev.dir=s.video('getDir',ev)+s.formattedTime(ev.time)+'.'+ev.ext;
                                                 k.del.push('(mid=? AND time=?)');
@@ -4408,43 +4407,6 @@ var tx;
             break;
         }
     })
-     //functions for retrieving cron announcements	
-     cn.on('cron',function(d){	
-         if(d.f==='init'){	
-             if(config.cron.key){	
-                 if(config.cron.key===d.cronKey){	
-                    s.cron={started:moment(),last_run:moment(),id:cn.id};	
-                 }else{	
-                     cn.disconnect()	
-                 }	
-             }else{	
-                 s.cron={started:moment(),last_run:moment(),id:cn.id};	
-             }	
-         }else{	
-             if(s.cron&&cn.id===s.cron.id){	
-                 delete(d.cronKey)	
-                 switch(d.f){	
-                     case'filters':	
-                         s.filterEvents(d.ff,d);	
-                     break;	
-                     case's.tx':	
-                         s.tx(d.data,d.to)	
-                     break;	
-                     case's.video':	
-                         s.video(d.data,d.file)	
-                     break;	
-                     case'start':case'end':	
-                         d.mid='_cron';s.log(d,{type:'cron',msg:d.msg})	
-                     break;	
-                     default:	
-                         s.systemLog('CRON : ',d)	
-                     break;	
-                 }	
-             }else{	
-                 cn.disconnect()	
-             }	
-         }	
-     })
     cn.on('disconnect', function () {
         if(cn.socketVideoStream){
             cn.closeSocketVideoStream()
@@ -4470,9 +4432,6 @@ var tx;
             s.connectedPlugins[cn.pluginEngine].plugged=false
             s.tx({f:'plugin_engine_unplugged',plug:cn.pluginEngine},'CPU')
             delete(s.api[cn.pluginEngine])
-        }
-        if(cn.cron){	
-            delete(s.cron);	
         }
         if(cn.ocv){
             s.tx({f:'detector_unplugged',plug:s.ocv.plug},'CPU')
