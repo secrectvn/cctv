@@ -1,6 +1,6 @@
 <% include blocks/header %>
 <script>var $user=<%- JSON.stringify($user) %>;</script>
-<link rel="stylesheet" href="libs/css/bootstrap.min.css">
+<link rel="stylesheet" href="<%-originalURL%>libs/css/bootstrap.min.css">
 <div id="main" class="container">
     <a class="btn btn-danger btn-lg" record>Stream</a>
     <div>
@@ -17,9 +17,8 @@ requires https or firefox
 </div>
 <video id="video"><source></video>
 <canvas id="canvas"></canvas>
-<script src="libs/js/jquery.min.js"></script>
-<script src="libs/js/socket.io.js"></script>
-<script src="libs/js/menu.js"></script>
+<script src="<%-originalURL%>libs/js/socket.io.js"></script>
+<script src="<%-originalURL%>libs/js/menu.js"></script>
 <script>
 $.ccio={};$.ls=localStorage;
 $.ccio.ws=io(location.origin);
@@ -63,7 +62,7 @@ $.ccio.start=function(){
         $.ccio.cx({f:'monitor_frame',frame:ctx,mid:$.ccio.selected});
         delete(ctx);
     },1000/$.ccio.framerate);
-$('[record]').unbind('click').click($.ccio.end)
+    $('[record]').unbind('click').click($.ccio.end)
 };
     
     
@@ -74,7 +73,7 @@ $('[record]').unbind('click').click($.ccio.end)
     
 $.ccio.vid = {e:$('#video'),c:$('#canvas')};
     navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia||navigator.mediaDevices.getUserMedia;
-window.URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
+    window.URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
     navigator.getUserMedia({video: true},function(stream,fn) {
         //set video element
    if ($.ccio.vid.e[0].mozSrcObject !== undefined) {

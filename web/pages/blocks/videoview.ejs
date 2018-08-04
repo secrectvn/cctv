@@ -8,10 +8,9 @@
         </button>
         <h4 class="modal-title" id="videos_viewerLabel"><i class="fa fa-film"></i> &nbsp; <%-lang.Videos%> <small> <span class="video_viewer_total"></span> <%-lang.total%></small></h4>
       </div>
-      <div class="modal-body flex-container-modal-body">
-          <div style="padding:20px 0" class="flex-block flex-modal-block">
+      <div class="modal-body overflow-hidden">
+          <div style="padding:20px 0">
               <div class="col-md-3">
-
                   <div class="form-group">
                     <label><div><span><%-lang['Date Range']%></span></div>
                         <div><input type="text" id="videos_viewer_daterange" class="form-control" value="" /></div>
@@ -32,7 +31,8 @@
       <div class="modal-footer">
           <div class="row">
               <div class="col-md-4 text-left">
-                  <a class="btn btn-danger delete_selected"><i class="fa fa-trash-o"></i> &nbsp; <%-lang['Delete selected']%></a> 
+                  <a class="btn btn-danger delete_selected"><i class="fa fa-trash-o"></i> &nbsp; <%-lang['Delete']%></a> 
+                  <a class="btn btn-default export_selected"><i class="fa fa-folder-o"></i> &nbsp; <%-lang['Zip and Download']%></a> 
               </div>
               <div class="col-md-4">
                   <div class="text-center" id="videos_viewer_pages"></div>

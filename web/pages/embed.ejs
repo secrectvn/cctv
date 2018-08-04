@@ -8,7 +8,9 @@ if(config.ssl&&config.ssl.port&&data.protocol==='https'){
 }
 if(!data.port||data.port===''||data.port==80||data.port==443){data.url=baseUrl}else{data.url=baseUrl+':'+data.port}
 if(data.addon || data.addon.indexOf('relative')>-1){
-    data.url=''
+    data.url = ''
+}else if(config.baseURL){
+    data.url = config.baseURL
 }
 if(data.url.charAt(data.url.length - 1) !== '/'){
     data.url += '/'
@@ -107,9 +109,10 @@ if(data.addon.indexOf('gui')>-1){ %>
 <% };
 if(data.addon.indexOf('fullscreen')>-1){ %>
 <style>
-    body,html{overflow: hidden;}
+    body,html{overflow: hidden;height:100%}
     *{margin:0;padding:0;border:0}
-    .stream-element,.shinobi_stream{position:absolute;top:0;left:0;}
+    .stream-element,.shinobi_stream{position:absolute;top:0;left:0;height:100%}
+    .shinobi_stream video{object-fit: fill}
 </style>
 <script>
 $(window).resize(function(){
