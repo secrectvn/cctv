@@ -120,6 +120,7 @@ if(config.databaseType === undefined){config.databaseType='mysql'}
 if(config.pluginKeys === undefined)config.pluginKeys={};
 if(config.databaseLogs === undefined){config.databaseLogs=false}
 if(config.useUTC === undefined){config.useUTC=false}
+if(config.iconURL === undefined){config.iconURL = "https://shinobi.video/libs/assets/icon/apple-touch-icon-152x152.png"}
 if(config.pipeAddition === undefined){config.pipeAddition=7}else{config.pipeAddition=parseInt(config.pipeAddition)}
 //Child Nodes
 if(config.childNodes === undefined)config.childNodes = {};
@@ -271,7 +272,7 @@ if(config.discordBot === true){
                 fields: [],
                 timestamp: new Date(),
                 footer: {
-                  icon_url: "https://shinobi.video/libs/assets/icon/apple-touch-icon-152x152.png",
+                  icon_url: config.iconURL,
                   text: "Shinobi Systems"
                 }
             },data)
@@ -329,9 +330,11 @@ s.ocvTx=function(data){
 //send data to socket client function
 s.tx = function(z,y,x){if(x){return x.broadcast.to(y).emit('f',z)};io.to(y).emit('f',z);}
 s.txToDashcamUsers = function(data,groupKey){
-    Object.keys(s.group[groupKey].dashcamUsers).forEach(function(auth){
-        s.tx(data,s.group[groupKey].dashcamUsers[auth].cnid)
-    })
+    if(s.group[groupKey] && s.group[groupKey].dashcamUsers){
+        Object.keys(s.group[groupKey].dashcamUsers).forEach(function(auth){
+            s.tx(data,s.group[groupKey].dashcamUsers[auth].cnid)
+        })
+    }
 }
 s.txWithSubPermissions = function(z,y,permissionChoices){
     if(typeof permissionChoices==='string'){
@@ -518,7 +521,7 @@ s.createPamDiffEngine = function(e){
             imgWidth:width
         }
         detectorObject.doObjectDetection = (s.ocv && e.details.detector_use_detect_object === '1')
-        s.camera('motion',detectorObject)
+        s.event('trigger',detectorObject)
         if(detectorObject.doObjectDetection === true){
             s.ocvTx({f:'frame',mon:s.group[e.ke].mon_conf[e.id].details,ke:e.ke,id:e.id,time:s.formattedTime(),frame:s.group[e.ke].mon[e.id].lastJpegDetectorFrame});
         }
@@ -627,6 +630,7 @@ s.kill = function(x,e,p){
                 delete(s.group[e.ke].mon[e.id].spawn_exit);
             }catch(er){}
         }
+        s.group[e.ke].mon[e.id].firstStreamChunk = {}
         clearTimeout(s.group[e.ke].mon[e.id].checker);
         delete(s.group[e.ke].mon[e.id].checker);
         clearTimeout(s.group[e.ke].mon[e.id].checkStream);
@@ -680,9 +684,9 @@ s.systemLog = function(q,w,e){
 }
 //system log
 s.debugLog = function(q,w,e){
-    if(!w){w = ''}
-    if(!e){e = ''}
     if(config.debugLog === true){
+        if(!w){w = ''}
+        if(!e){e = ''}
         console.log(s.timeObject().format(),q,w,e)
         if(config.debugLogVerbose === true){
             console.log(new Error())
@@ -975,14 +979,14 @@ s.init=function(x,e,k,fn){
 //            s.discordMsg({
 //                author: {
 //                  name: s.group[e.ke].mon_conf[e.id].name,
-//                  icon_url: "https://shinobi.video/libs/assets/icon/apple-touch-icon-152x152.png"
+//                  icon_url: config.iconURL
 //                },
 //                title: lang['Status Changed'],
 //                description: lang['Monitor is now '+e.status],
 //                fields: [],
 //                timestamp: new Date(),
 //                footer: {
-//                  icon_url: "https://shinobi.video/libs/assets/icon/apple-touch-icon-152x152.png",
+//                  icon_url: config.iconURL,
 //                  text: "Shinobi Systems"
 //                }
 //            },[],e.ke)
@@ -1323,7 +1327,7 @@ s.video=function(x,e,k){
                     k.stat = fs.statSync(k.dir+k.file)
                     e.filesize = k.stat.size
                     e.filesizeMB = parseFloat((e.filesize/1000000).toFixed(2))
-                    
+
                     e.startTime = new Date(s.nameToTime(k.file))
                     e.endTime = new Date(k.stat.mtime)
                     if(config.useUTC === true){
@@ -1415,9 +1419,9 @@ s.video=function(x,e,k){
                             console.error(err)
                         })
                         s.group[e.ke].aws_s3.upload({
-                            Bucket: s.group[e.ke].init.aws_s3_bucket, 
-                            Key: s.group[e.ke].init.aws_s3_dir+e.ke+'/'+e.mid+'/'+k.filename, 
-                            Body:fileStream, 
+                            Bucket: s.group[e.ke].init.aws_s3_bucket,
+                            Key: s.group[e.ke].init.aws_s3_dir+e.ke+'/'+e.mid+'/'+k.filename,
+                            Body:fileStream,
                             ACL:'public-read'
                         },function(err,data){
                             if(err){
@@ -1501,7 +1505,7 @@ s.createInputMap = function(e,number,input){
     //input - probe size
     if(input.probesize&&input.probesize!==''){x.cust_input+=' -probesize '+input.probesize}
     //input - stream loop (good for static files/lists)
-    if(input.stream_loop==='1'){x.cust_input+=' -stream_loop -1'}
+    if(input.stream_loop === '1'){x.cust_input+=' -stream_loop -1'}
     //input - fps
     if(x.cust_input.indexOf('-r ')===-1&&input.sfps&&input.sfps!==''){
         input.sfps=parseFloat(input.sfps);
@@ -1599,7 +1603,7 @@ s.createStreamChannel = function(e,number,channel){
     //stream - custom flags
     if(channel.cust_stream&&channel.cust_stream!==''){x.cust_stream=' '+channel.cust_stream}else{x.cust_stream=''}
     //stream - preset
-    if(channel.preset_stream&&channel.preset_stream!==''){x.preset_stream=' -preset '+channel.preset_stream;}else{x.preset_stream=''}
+    if(channel.stream_type !== 'h265' && channel.preset_stream && channel.preset_stream!==''){x.preset_stream=' -preset '+channel.preset_stream;}else{x.preset_stream=''}
     //hardware acceleration
     if(e.details.accelerator&&e.details.accelerator==='1'){
         if(e.details.hwaccel&&e.details.hwaccel!==''){
@@ -1646,8 +1650,8 @@ s.createStreamChannel = function(e,number,channel){
         //add input feed map
         x.pipe += s.createFFmpegMap(e,e.details.input_map_choices['stream_channel-'+(number-config.pipeAddition)])
     }
-    if(channel.stream_vcodec!=='copy'){
-        x.cust_stream+=x.stream_fps
+    if(channel.stream_vcodec !== 'copy' || channel.stream_type === 'mjpeg' || channel.stream_type === 'b64'){
+        x.cust_stream += x.stream_fps
     }
     switch(channel.stream_type){
         case'mp4':
@@ -1730,7 +1734,7 @@ s.ffmpegCoProcessor = function(e){
     //x.input is the input and connection
     if(e.details.loglevel&&e.details.loglevel!==''){x.loglevel='-loglevel '+e.details.loglevel;}else{x.loglevel='-loglevel error'}
     x.input = x.loglevel+' -re -i '+e.sdir+'cpuOnly.m3u8'
-    
+
     //x.pipe is the stream out methods
     x.cust_input=''
     x.cust_detect=' '
@@ -1787,8 +1791,8 @@ s.ffmpegCoProcessor = function(e){
     }
     if(e.details.cust_stream&&e.details.cust_stream!==''){x.cust_stream=' '+e.details.cust_stream}else{x.cust_stream=''}
     if(e.details.stream_fps&&e.details.stream_fps!==''){x.stream_fps=' -r '+e.details.stream_fps}else{x.stream_fps=''}
-    if(e.details.stream_vcodec!=='copy'){
-        x.cust_stream+=x.stream_fps
+    if(e.details.stream_vcodec !== 'copy' || e.details.stream_type === 'mjpeg' || e.details.stream_type === 'b64'){
+        x.cust_stream += x.stream_fps
     }
     switch(e.details.stream_type){
         case'mjpeg':
@@ -1804,18 +1808,35 @@ s.ffmpegCoProcessor = function(e){
     }
     //detector frames
     if(e.details.detector === '1'){
-        if(!e.details.detector_fps||e.details.detector_fps===''){e.details.detector_fps=2}
-        if(e.details.detector_scale_x&&e.details.detector_scale_x!==''&&e.details.detector_scale_y&&e.details.detector_scale_y!==''){x.dratio=' -s '+e.details.detector_scale_x+'x'+e.details.detector_scale_y}else{x.dratio=' -s 320x240'}
+        if(e.details.detector_fps && e.details.detector_fps !== ''){
+            x.detector_fps = e.details.detector_fps
+        }else{
+            x.detector_fps = '2'
+        }
+        if(e.details.detector_scale_x && e.details.detector_scale_x !== '' && e.details.detector_scale_y && e.details.detector_scale_y !== ''){
+            x.dratio=' -s '+e.details.detector_scale_x+'x'+e.details.detector_scale_y
+        }else{
+            x.dratio=' -s 320x240'
+        }
+
         if(e.details.cust_detect&&e.details.cust_detect!==''){x.cust_detect+=e.details.cust_detect;}
         if(e.details.detector_pam==='1'){
-            x.pipe += ' -an -c:v pam -pix_fmt gray -f image2pipe -r '+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:3'
+            x.pipe += ' -an -c:v pam -pix_fmt gray -f image2pipe -r '+x.detector_fps+x.cust_detect+x.dratio+' pipe:3'
             if(e.details.detector_use_detect_object === '1'){
+                if(e.details.detector_use_motion === '1'){
+                    if(e.details.detector_scale_x_object && e.details.detector_scale_x_object !== '' && e.details.detector_scale_y_object && e.details.detector_scale_y_object !== ''){
+                        x.dratio=' -s '+e.details.detector_scale_x_object+'x'+e.details.detector_scale_y_object
+                    }
+                    if(e.details.detector_fps_object && e.details.detector_fps_object !== ''){
+                        x.detector_fps = e.details.detector_fps_object
+                    }
+                }
                 //for object detection
                 x.pipe += s.createFFmpegMap(e,e.details.input_map_choices.detector)
-                x.pipe += ' -f singlejpeg -vf fps='+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:4';
+                x.pipe += ' -f singlejpeg -vf fps='+x.detector_fps+x.cust_detect+x.dratio+' pipe:4';
             }
         }else{
-            x.pipe+=' -f singlejpeg -vf fps='+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:3';
+            x.pipe+=' -f singlejpeg -vf fps='+x.detector_fps+x.cust_detect+x.dratio+' pipe:3';
         }
     }
     //snapshot frames
@@ -1901,7 +1922,14 @@ s.coSpawnClose = function(e){
 s.ffmpeg = function(e){
     e.coProcessor = false
     e.isStreamer = (e.type === 'dashcam'|| e.type === 'socket')
-    if(e.details.accelerator === '1' && e.details.hwaccel_vcodec !== 'auto' && e.isStreamer === false && (!e.details.input_maps || e.details.input_maps.length === 0)){
+    if(
+        e.details.accelerator === '1' &&
+        e.details.hwaccel !== 'vaapi' &&
+        e.details.hwaccel_vcodec !== 'auto' &&
+        e.isStreamer === false &&
+        (!e.details.input_maps || e.details.input_maps.length === 0) &&
+        (e.details.snap === '1' || e.details.stream_type === 'mjpeg' || e.details.stream_type === 'b64' || e.details.detector === '1')
+      ){
         e.coProcessor = true
     }
     //set X for temporary values so we don't break our main monitor object.
@@ -1921,7 +1949,7 @@ s.ffmpeg = function(e){
     //input - probe size
     if(e.details.probesize&&e.details.probesize!==''){x.cust_input+=' -probesize '+e.details.probesize};
     //input - stream loop (good for static files/lists)
-    if(e.details.stream_loop==='1'){x.cust_input+=' -stream_loop -1'};
+    if(e.details.stream_loop === '1' && (e.type === 'mp4' || e.type === 'local')){x.cust_input+=' -stream_loop -1'};
     //input
     if(e.details.cust_input.indexOf('-fflags') === -1){x.cust_input+=' -fflags +igndts'}
     switch(e.type){
@@ -2084,7 +2112,7 @@ s.ffmpeg = function(e){
     //stream - custom flags
     if(e.details.cust_stream&&e.details.cust_stream!==''){x.cust_stream=' '+e.details.cust_stream}else{x.cust_stream=''}
     //stream - preset
-    if(e.details.preset_stream&&e.details.preset_stream!==''){x.preset_stream=' -preset '+e.details.preset_stream;}else{x.preset_stream=''}
+    if(e.details.stream_type !== 'h265' && e.details.preset_stream && e.details.preset_stream !== ''){x.preset_stream=' -preset '+e.details.preset_stream;}else{x.preset_stream=''}
     //stream - quality
     //hardware acceleration
     if(e.details.accelerator && e.details.accelerator==='1' && e.isStreamer === false){
@@ -2131,8 +2159,8 @@ s.ffmpeg = function(e){
         //add input feed map
         x.pipe += s.createFFmpegMap(e,e.details.input_map_choices.stream)
     }
-    if(e.details.stream_vcodec!=='copy'){
-        x.cust_stream+=x.stream_fps
+    if(e.details.stream_vcodec !== 'copy' || e.details.stream_type === 'mjpeg' || e.details.stream_type === 'b64'){
+        x.cust_stream += x.stream_fps
     }
     switch(e.details.stream_type){
         case'mp4':
@@ -2171,12 +2199,15 @@ s.ffmpeg = function(e){
                 x.pipe+=' -an -c:v mjpeg -f mpjpeg -boundary_tag shinobi'+x.cust_stream+x.stream_video_filters+' pipe:1';
             }
         break;
-        case'pam':
-            if(e.coProcessor === false){
+        case'h265':
+            x.cust_stream+=' -movflags +frag_keyframe+empty_moov+default_base_moof -metadata title="Shinobi H.265 Stream" -reset_timestamps 1'
+            if(e.details.stream_vcodec!=='copy'){
                 if(x.dimensions && x.cust_stream.indexOf('-s ')===-1){x.cust_stream+=' -s '+x.dimensions}
-                if(e.details.stream_quality && e.details.stream_quality !== '')x.cust_stream+=' -q:v '+e.details.stream_quality;
-                x.pipe+=' -an -c:v pam -pix_fmt rgba -f image2pipe'+x.cust_stream+x.stream_video_filters+' pipe:1';
+                if(e.details.stream_quality && e.details.stream_quality !== '')x.cust_stream+=' -crf '+e.details.stream_quality;
+                x.cust_stream+=x.preset_stream
+                x.cust_stream+=x.stream_video_filters
             }
+            x.pipe+=' -f hevc'+x.stream_acodec+x.stream_vcodec+x.cust_stream+' pipe:1';
         break;
         case'b64':case'':case undefined:case null://base64
             if(e.coProcessor === false){
@@ -2191,29 +2222,28 @@ s.ffmpeg = function(e){
     }
     if(e.details.stream_channels){
         e.details.stream_channels.forEach(function(v,n){
+            if(v.stream_type === 'mjpeg')e.coProcessor = true;
             x.pipe += s.createStreamChannel(e,n+config.pipeAddition,v)
         })
     }
     //detector - plugins, motion
-    if(e.details.detector==='1'&&e.details.detector_send_frames==='1'){
-        if(e.details.accelerator !== '1'){
-            if(e.details.input_map_choices&&e.details.input_map_choices.detector){
-                //add input feed map
+    if(e.details.detector==='1' && e.details.detector_send_frames==='1' && e.coProcessor === false){
+        if(e.details.input_map_choices&&e.details.input_map_choices.detector){
+            //add input feed map
+            x.pipe += s.createFFmpegMap(e,e.details.input_map_choices.detector)
+        }
+        if(!e.details.detector_fps||e.details.detector_fps===''){e.details.detector_fps=2}
+        if(e.details.detector_scale_x&&e.details.detector_scale_x!==''&&e.details.detector_scale_y&&e.details.detector_scale_y!==''){x.dratio=' -s '+e.details.detector_scale_x+'x'+e.details.detector_scale_y}else{x.dratio=' -s 320x240'}
+        if(e.details.cust_detect&&e.details.cust_detect!==''){x.cust_detect+=e.details.cust_detect;}
+        if(e.details.detector_pam==='1'){
+            x.pipe+=' -an -c:v pam -pix_fmt gray -f image2pipe -r '+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:3'
+            if(e.details.detector_use_detect_object === '1'){
+                //for object detection
                 x.pipe += s.createFFmpegMap(e,e.details.input_map_choices.detector)
+                x.pipe += ' -f singlejpeg -vf fps='+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:4';
             }
-            if(!e.details.detector_fps||e.details.detector_fps===''){e.details.detector_fps=2}
-            if(e.details.detector_scale_x&&e.details.detector_scale_x!==''&&e.details.detector_scale_y&&e.details.detector_scale_y!==''){x.dratio=' -s '+e.details.detector_scale_x+'x'+e.details.detector_scale_y}else{x.dratio=' -s 320x240'}
-            if(e.details.cust_detect&&e.details.cust_detect!==''){x.cust_detect+=e.details.cust_detect;}
-            if(e.details.detector_pam==='1'){
-                x.pipe+=' -an -c:v pam -pix_fmt gray -f image2pipe -r '+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:3'
-                if(e.details.detector_use_detect_object === '1'){
-                    //for object detection
-                    x.pipe += s.createFFmpegMap(e,e.details.input_map_choices.detector)
-                    x.pipe += ' -f singlejpeg -vf fps='+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:4';
-                }
-            }else{
-                x.pipe+=' -f singlejpeg -vf fps='+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:3';
-            }
+        }else{
+            x.pipe+=' -f singlejpeg -vf fps='+e.details.detector_fps+x.cust_detect+x.dratio+' pipe:3';
         }
     }
     //api - snapshot bin/ cgi.bin (JPEG Mode)
@@ -2327,7 +2357,7 @@ s.ffmpeg = function(e){
     //create executeable FFMPEG command
     x.ffmpegCommandString = x.loglevel+x.input_fps;
     //progress pipe
-//    x.ffmpegCommandString += ' -progress pipe:5';
+    x.ffmpegCommandString += ' -progress pipe:5';
     //add main input
     if((e.type === 'mp4' || e.type === 'mjpeg') && x.cust_input.indexOf('-re') === -1){
         x.cust_input += ' -re'
@@ -2391,6 +2421,438 @@ s.file=function(x,e){
         break;
     }
 }
+s.event = function(x,e,cn){
+    switch(x){
+        case'trigger':
+            var d=e;
+            var filter = {
+                halt : false,
+                addToMotionCounter : true,
+                useLock : true,
+                save : true,
+                discord : true,
+                webhook : true,
+                command : true,
+                mail : true,
+                record : true
+            }
+            if(s.group[d.ke].mon[d.id].open){
+                d.details.videoTime = s.group[d.ke].mon[d.id].open;
+            }
+            var detailString = JSON.stringify(d.details);
+            if(!s.group[d.ke]||!s.group[d.ke].mon[d.id]){
+                return s.systemLog(lang['No Monitor Found, Ignoring Request'])
+            }
+            d.mon=s.group[d.ke].mon_conf[d.id];
+            var currentConfig = s.group[d.ke].mon[d.id].details
+            //read filters
+            if(
+                currentConfig.use_detector_filters === '1' &&
+                ((currentConfig.use_detector_filters_object === '1' && d.details.matrices) ||
+                currentConfig.use_detector_filters_object !== '1')
+            ){
+                var parseValue = function(key,val){
+                    var newVal
+                    switch(val){
+                        case'':
+                            newVal = filter[key]
+                        break;
+                        case'0':
+                            newVal = false
+                        break;
+                        case'1':
+                            newVal = true
+                        break;
+                        default:
+                            newVal = val
+                        break;
+                    }
+                    return newVal
+                }
+                var filters = currentConfig.detector_filters
+                Object.keys(filters).forEach(function(key){
+                    var conditionChain = {}
+                    var dFilter = filters[key]
+                    dFilter.where.forEach(function(condition,place){
+                        conditionChain[place] = {ok:false,next:condition.p4,matrixCount:0}
+                        if(d.details.matrices)conditionChain[place].matrixCount = d.details.matrices.length
+                        var modifyFilters = function(toCheck,matrixPosition){
+                            var param = toCheck[condition.p1]
+                            var pass = function(){
+                                if(matrixPosition && dFilter.actions.halt === '1'){
+                                    delete(d.details.matrices[matrixPosition])
+                                }else{
+                                    conditionChain[place].ok = true
+                                }
+                            }
+                            switch(condition.p2){
+                                case'indexOf':
+                                    if(param.indexOf(condition.p3) > -1){
+                                        pass()
+                                    }
+                                break;
+                                case'!indexOf':
+                                    if(param.indexOf(condition.p3) === -1){
+                                        pass()
+                                    }
+                                break;
+                                default:
+                                    var cmd = 'param '+condition.p2+' "'+condition.p3.replace(/"/g,'\\"')+'"'
+                                    if(eval('param '+condition.p2+' "'+condition.p3.replace(/"/g,'\\"')+'"')){
+                                        pass()
+                                    }
+                                break;
+                            }
+                        }
+                        switch(condition.p1){
+                            case'tag':
+                            case'x':
+                            case'y':
+                            case'height':
+                            case'width':
+                                if(d.details.matrices){
+                                    d.details.matrices.forEach(function(matrix,position){
+                                        modifyFilters(matrix,position)
+                                    })
+                                }
+                            break;
+                            default:
+                                modifyFilters(d.details)
+                            break;
+                        }
+                    })
+                    var conditionArray = Object.values(conditionChain)
+                    var validationString = ''
+                    conditionArray.forEach(function(condition,number){
+                        validationString += condition.ok+' '
+                        if(conditionArray.length-1 !== number){
+                            validationString += condition.next+' '
+                        }
+                    })
+                    if(eval(validationString)){
+                        if(dFilter.actions.halt !== '1'){
+                            delete(dFilter.actions.halt)
+                            Object.keys(dFilter.actions).forEach(function(key){
+                                var value = dFilter.actions[key]
+                                filter[key] = parseValue(key,value)
+                            })
+                        }else{
+                            filter.halt = true
+                        }
+                    }
+                })
+                if(d.details.matrices && d.details.matrices.length === 0 || filter.halt === true){
+                    return
+                }else if(d.details.matrices && d.details.matrices.length > 0){
+                    var reviewedMatrix = []
+                    d.details.matrices.forEach(function(matrix){
+                        if(matrix)reviewedMatrix.push(matrix)
+                    })
+                    d.details.matrices = reviewedMatrix
+                }
+            }
+            //motion counter
+            if(filter.addToMotionCounter && filter.record){
+                if(!s.group[d.ke].mon[d.id].detector_motion_count){
+                    s.group[d.ke].mon[d.id].detector_motion_count=0
+                }
+                s.group[d.ke].mon[d.id].detector_motion_count+=1
+            }
+            if(filter.useLock){
+                if(s.group[d.ke].mon[d.id].motion_lock){
+                    return
+                }
+                var detector_lock_timeout
+                if(!currentConfig.detector_lock_timeout||currentConfig.detector_lock_timeout===''){
+                    detector_lock_timeout = 2000
+                }
+                detector_lock_timeout = parseFloat(currentConfig.detector_lock_timeout);
+                if(!s.group[d.ke].mon[d.id].detector_lock_timeout){
+                    s.group[d.ke].mon[d.id].detector_lock_timeout=setTimeout(function(){
+                        clearTimeout(s.group[d.ke].mon[d.id].detector_lock_timeout)
+                        delete(s.group[d.ke].mon[d.id].detector_lock_timeout)
+                    },detector_lock_timeout)
+                }else{
+                    return
+                }
+            }
+            if(d.doObjectDetection !== true){
+                //save this detection result in SQL, only coords. not image.
+                if(filter.save && currentConfig.detector_save==='1'){
+                    s.sqlQuery('INSERT INTO Events (ke,mid,details) VALUES (?,?,?)',[d.ke,d.id,detailString])
+                }
+                if(currentConfig.detector_notrigger=='1'){
+                    var detector_notrigger_timeout
+                    if(!currentConfig.detector_notrigger_timeout||currentConfig.detector_notrigger_timeout===''){
+                        detector_notrigger_timeout = 10
+                    }
+                    detector_notrigger_timeout = parseFloat(currentConfig.detector_notrigger_timeout)*1000*60;
+                    s.group[e.ke].mon[e.id].detector_notrigger_timeout = detector_notrigger_timeout;
+                    clearInterval(s.group[d.ke].mon[d.id].detector_notrigger_timeout)
+                    s.group[d.ke].mon[d.id].detector_notrigger_timeout = setInterval(s.group[d.ke].mon[d.id].detector_notrigger_timeout_function,detector_notrigger_timeout)
+                }
+                if(filter.webhook && currentConfig.detector_webhook=='1'){
+                    var detector_webhook_url = currentConfig.detector_webhook_url
+                        .replace(/{{TIME}}/g,s.timeObject(new Date).format())
+                        .replace(/{{REGION_NAME}}/g,d.details.name)
+                        .replace(/{{SNAP_PATH}}/g,s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg')
+                        .replace(/{{MONITOR_ID}}/g,d.id)
+                        .replace(/{{GROUP_KEY}}/g,d.ke)
+                        .replace(/{{DETAILS}}/g,detailString)
+                    request({url:detector_webhook_url,method:'GET',encoding:null},function(err,data){
+                        if(err){
+                            s.log(d,{type:lang["Event Webhook Error"],msg:{error:err,data:data}})
+                        }
+                    })
+                }
+                var detector_timeout
+                if(!currentConfig.detector_timeout||currentConfig.detector_timeout===''){
+                    detector_timeout = 10
+                }else{
+                    detector_timeout = parseFloat(currentConfig.detector_timeout)
+                }
+                if(filter.record && d.mon.mode=='start'&&currentConfig.detector_trigger==='1'&&currentConfig.detector_record_method==='sip'){
+                    //s.group[d.ke].mon[d.id].eventBasedRecording.timeout
+    //                clearTimeout(s.group[d.ke].mon[d.id].eventBasedRecording.timeout)
+                    s.group[d.ke].mon[d.id].eventBasedRecording.timeout = setTimeout(function(){
+                        s.group[d.ke].mon[d.id].eventBasedRecording.allowEnd=true;
+                    },detector_timeout * 950 * 60)
+                    if(!s.group[d.ke].mon[d.id].eventBasedRecording.process){
+                        if(!d.auth){
+                            d.auth=s.gid();
+                        }
+                        if(!s.group[d.ke].users[d.auth]){
+                            s.group[d.ke].users[d.auth]={system:1,details:{},lang:lang}
+                        }
+                        s.group[d.ke].mon[d.id].eventBasedRecording.allowEnd = false;
+                        var runRecord = function(){
+                            var filename = s.formattedTime()+'.mp4'
+                            s.log(d,{type:"Traditional Recording",msg:"Started"})
+                            //-t 00:'+s.timeObject(new Date(detector_timeout * 1000 * 60)).format('mm:ss')+'
+                            s.group[d.ke].mon[d.id].eventBasedRecording.process = spawn(config.ffmpegDir,s.splitForFFPMEG(('-loglevel warning -analyzeduration 1000000 -probesize 1000000 -re -i http://'+config.ip+':'+config.port+'/'+d.auth+'/hls/'+d.ke+'/'+d.id+'/detectorStream.m3u8 -t 00:'+s.timeObject(new Date(detector_timeout * 1000 * 60)).format('mm:ss')+' -c:v copy -strftime 1 "'+s.video('getDir',d.mon) + filename + '"').replace(/\s+/g,' ').trim()))
+                            var ffmpegError='';
+                            var error
+                            s.group[d.ke].mon[d.id].eventBasedRecording.process.stderr.on('data',function(data){
+                                s.log(d,{type:"Traditional Recording",msg:data.toString()})
+                            })
+                            s.group[d.ke].mon[d.id].eventBasedRecording.process.on('close',function(){
+                                if(!s.group[d.ke].mon[d.id].eventBasedRecording.allowEnd){
+                                    s.log(d,{type:"Traditional Recording",msg:"Detector Recording Process Exited Prematurely. Restarting."})
+                                    runRecord()
+                                    return
+                                }
+                                s.video('insertCompleted',d.mon,{
+                                    file : filename
+                                })
+                                s.log(d,{type:"Traditional Recording",msg:"Detector Recording Complete"})
+                                delete(s.group[d.ke].users[d.auth])
+                                s.log(d,{type:"Traditional Recording",msg:'Clear Recorder Process'})
+                                delete(s.group[d.ke].mon[d.id].eventBasedRecording.process)
+                                delete(s.group[d.ke].mon[d.id].eventBasedRecording.timeout)
+                                clearTimeout(s.group[d.ke].mon[d.id].checker)
+                            })
+                        }
+                        runRecord()
+                    }
+                }else if(filter.record && d.mon.mode!=='stop'&&currentConfig.detector_trigger=='1'&&currentConfig.detector_record_method==='hot'){
+                    if(!d.auth){
+                        d.auth=s.gid();
+                    }
+                    if(!s.group[d.ke].users[d.auth]){
+                        s.group[d.ke].users[d.auth]={system:1,details:{},lang:lang}
+                    }
+                    d.urlQuery=[]
+                    d.url='http://'+config.ip+':'+config.port+'/'+d.auth+'/monitor/'+d.ke+'/'+d.id+'/record/'+detector_timeout+'/min';
+                    if(currentConfig.watchdog_reset!=='0'){
+                        d.urlQuery.push('reset=1')
+                    }
+                    if(currentConfig.detector_trigger_record_fps&&currentConfig.detector_trigger_record_fps!==''&&currentConfig.detector_trigger_record_fps!=='0'){
+                        d.urlQuery.push('fps='+currentConfig.detector_trigger_record_fps)
+                    }
+                    if(d.urlQuery.length>0){
+                        d.url+='?'+d.urlQuery.join('&')
+                    }
+                    http.get(d.url, function(data) {
+                        data.setEncoding('utf8');
+                        var chunks='';
+                        data.on('data', (chunk) => {
+                            chunks+=chunk;
+                        });
+                        data.on('end', () => {
+                            delete(s.group[d.ke].users[d.auth])
+                            d.cx.f='detector_record_engaged';
+                            d.cx.msg=JSON.parse(chunks);
+                            s.tx(d.cx,'GRP_'+d.ke);
+                        });
+
+                    }).on('error', function(e) {
+
+                    }).end();
+                }
+                var screenshotName = 'Motion_'+(d.mon.name.replace(/[^\w\s]/gi,''))+'_'+d.id+'_'+d.ke+'_'+s.formattedTime()
+                var screenshotBuffer = null
+                var detectorStreamBuffers = null
+
+                //discord bot
+                if(filter.discord && currentConfig.detector_discordbot === '1' && !s.group[d.ke].mon[d.id].detector_discordbot){
+                    var detector_discordbot_timeout
+                    if(!currentConfig.detector_discordbot_timeout||currentConfig.detector_discordbot_timeout===''){
+                        detector_discordbot_timeout = 1000*60*10;
+                    }else{
+                        detector_discordbot_timeout = parseFloat(currentConfig.detector_discordbot_timeout)*1000*60;
+                    }
+                    //lock mailer so you don't get emailed on EVERY trigger event.
+                    s.group[d.ke].mon[d.id].detector_discordbot=setTimeout(function(){
+                        //unlock so you can mail again.
+                        clearTimeout(s.group[d.ke].mon[d.id].detector_discordbot);
+                        delete(s.group[d.ke].mon[d.id].detector_discordbot);
+                    },detector_discordbot_timeout);
+                    var files = []
+                    var sendAlert = function(){
+                        s.discordMsg({
+                            author: {
+                              name: s.group[d.ke].mon_conf[d.id].name,
+                              icon_url: config.iconURL
+                            },
+                            title: lang.Event+' - '+screenshotName,
+                            description: lang.EventText1+' '+s.timeObject(new Date).format(),
+                            fields: [],
+                            timestamp: new Date(),
+                            footer: {
+                              icon_url: config.iconURL,
+                              text: "Shinobi Systems"
+                            }
+                        },files,d.ke)
+                    }
+                    if(currentConfig.detector_discordbot_send_video === '1'){
+                        if(!detectorStreamBuffers){
+                            detectorStreamBuffers = s.getDetectorStreams(d)
+                        }
+                        detectorStreamBuffers.slice(detectorStreamBuffers.length - 2,detectorStreamBuffers.length).forEach(function(filepath,n){
+                            files.push({
+                                attachment: filepath,
+                                name: 'Video Clip '+n+'.ts'
+                            })
+                        })
+                    }
+                    if(screenshotBuffer){
+                        sendAlert()
+                    }else if(currentConfig.snap === '1'){
+                        fs.readFile(s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg',function(err, frame){
+                            if(err){
+                                s.systemLog(lang.EventText2+' '+d.ke+' '+d.id,err)
+                            }else{
+                                screenshotBuffer = frame
+                                files.push({
+                                    attachment: screenshotBuffer,
+                                    name: screenshotName+'.jpg'
+                                })
+                            }
+                            sendAlert()
+                        })
+                    }else{
+                        sendAlert()
+                    }
+                }
+                //mailer
+                if(filter.mail && config.mail && !s.group[d.ke].mon[d.id].detector_mail && currentConfig.detector_mail === '1'){
+                    s.sqlQuery('SELECT mail FROM Users WHERE ke=? AND details NOT LIKE ?',[d.ke,'%"sub"%'],function(err,r){
+                        r=r[0];
+                        var detector_mail_timeout
+                        if(!currentConfig.detector_mail_timeout||currentConfig.detector_mail_timeout===''){
+                            detector_mail_timeout = 1000*60*10;
+                        }else{
+                            detector_mail_timeout = parseFloat(currentConfig.detector_mail_timeout)*1000*60;
+                        }
+                        //lock mailer so you don't get emailed on EVERY trigger event.
+                        s.group[d.ke].mon[d.id].detector_mail=setTimeout(function(){
+                            //unlock so you can mail again.
+                            clearTimeout(s.group[d.ke].mon[d.id].detector_mail);
+                            delete(s.group[d.ke].mon[d.id].detector_mail);
+                        },detector_mail_timeout);
+                        var files = []
+                        var mailOptions = {
+                            from: config.mail.from, // sender address
+                            to: r.mail, // list of receivers
+                            subject: lang.Event+' - '+screenshotName, // Subject line
+                            html: '<i>'+lang.EventText1+' '+s.timeObject(new Date).format()+'.</i>',
+                            attachments: files
+                        }
+                        var sendMail = function(){
+                            Object.keys(d.details).forEach(function(v,n){
+                                mailOptions.html+='<div><b>'+v+'</b> : '+d.details[v]+'</div>'
+                            })
+                            nodemailer.sendMail(mailOptions, (error, info) => {
+                                if (error) {
+                                    s.systemLog(lang.MailError,error)
+                                    return false;
+                                }
+                            })
+                        }
+                        if(currentConfig.detector_mail_send_video === '1'){
+                            if(!detectorStreamBuffers){
+                                detectorStreamBuffers = s.getDetectorStreams(d)
+                            }
+                            detectorStreamBuffers.slice(detectorStreamBuffers.length - 2,detectorStreamBuffers.length).forEach(function(filepath,n){
+                                files.push({
+                                    filename: 'Video Clip '+n+'.ts',
+                                    content: fs.readFileSync(filepath)
+                                })
+                            })
+                        }
+                        if(screenshotBuffer){
+                            sendMail()
+                        }else if(currentConfig.snap === '1'){
+                            fs.readFile(s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg',function(err, frame){
+                                if(err){
+                                    s.systemLog(lang.EventText2+' '+d.ke+' '+d.id,err)
+                                }else{
+                                    screenshotBuffer = frame
+                                    files.push({
+                                        filename: screenshotName+'.jpg',
+                                        content: frame
+                                    })
+                                }
+                                sendMail()
+                            })
+                        }else{
+                            sendMail()
+                        }
+                    });
+                }
+                if(filter.command && currentConfig.detector_command_enable==='1'&&!s.group[d.ke].mon[d.id].detector_command){
+                    var detector_command_timeout
+                    if(!currentConfig.detector_command_timeout||currentConfig.detector_command_timeout===''){
+                        detector_command_timeout = 1000*60*10;
+                    }else{
+                        detector_command_timeout = parseFloat(currentConfig.detector_command_timeout)*1000*60;
+                    }
+                    s.group[d.ke].mon[d.id].detector_command=setTimeout(function(){
+                        clearTimeout(s.group[d.ke].mon[d.id].detector_command);
+                        delete(s.group[d.ke].mon[d.id].detector_command);
+
+                    },detector_command_timeout);
+                    var detector_command = currentConfig.detector_command
+                        .replace(/{{TIME}}/g,s.timeObject(new Date).format())
+                        .replace(/{{REGION_NAME}}/g,d.details.name)
+                        .replace(/{{SNAP_PATH}}/g,s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg')
+                        .replace(/{{MONITOR_ID}}/g,d.id)
+                        .replace(/{{GROUP_KEY}}/g,d.ke)
+                        .replace(/{{DETAILS}}/g,detailString)
+                    if(d.details.confidence){
+                        detector_command = detector_command
+                        .replace(/{{CONFIDENCE}}/g,d.details.confidence)
+                    }
+                    exec(detector_command,{detached: true})
+                }
+            }
+            //show client machines the event
+            d.cx={f:'detector_trigger',id:d.id,ke:d.ke,details:d.details,doObjectDetection:d.doObjectDetection};
+            s.tx(d.cx,'DETECTOR_'+d.ke+d.id);
+        break;
+    }
+    if(typeof cn==='function'){setTimeout(function(){cn()},1000);}
+}
 s.camera=function(x,e,cn,tx){
     if(x!=='motion'){
         var ee=s.init('noReference',e);
@@ -2402,14 +2864,15 @@ s.camera=function(x,e,cn,tx){
         try{e.details=JSON.parse(e.details)}catch(err){}
     }
     //parse Objects
-    (['detector_cascades','cords','input_map_choices']).forEach(function(v){
+    (['detector_cascades','cords','detector_filters','input_map_choices']).forEach(function(v){
         if(e.details&&e.details[v]&&(e.details[v] instanceof Object)===false){
             try{
                 if(e.details[v] === '') e.details[v] = '{}'
                 e.details[v]=JSON.parse(e.details[v]);
                 if(!e.details[v])e.details[v]={};
+                s.group[e.ke].mon[e.id].details = e.details;
             }catch(err){
-                
+
             }
         }
     });
@@ -3063,6 +3526,15 @@ s.camera=function(x,e,cn,tx){
                         if(!s.group[e.ke].mon[e.id].record){s.group[e.ke].mon[e.id].record={yes:1}};
                         //launch ffmpeg (main)
                         s.group[e.ke].mon[e.id].spawn = s.ffmpeg(e)
+                        s.group[e.ke].mon[e.id].spawn.stdio[5].on('data',function(data){
+                            resetStreamCheck()
+                            // var progress = {}
+                            // data.toString().split('\n').forEach(function(v){
+                            //     var split = v.split('=')
+                            //     var val = split[1]
+                            //     if(val)progress[split[0]] = val
+                            // })
+                        })
                         if(e.type === 'dashcam'){
                             setTimeout(function(){
                                 s.group[e.ke].mon[e.id].allowStdinWrite = true
@@ -3078,7 +3550,7 @@ s.camera=function(x,e,cn,tx){
                         s.group[e.ke].mon[e.id].spawn_exit=function(){
                             if(s.group[e.ke].mon[e.id].started===1){
                                 if(e.details.loglevel!=='quiet'){
-                                    s.log(e,{type:lang['Process Unexpected Exit'],msg:{msg:lang['Process Crashed for Monitor']+' : '+e.id,cmd:s.group[e.ke].mon[e.id].ffmpeg}});
+                                    s.log(e,{type:lang['Process Unexpected Exit'],msg:{msg:lang['Process Crashed for Monitor'],cmd:s.group[e.ke].mon[e.id].ffmpeg}});
                                 }
                                 errorFatal('Process Unexpected Exit');
                             }
@@ -3089,7 +3561,7 @@ s.camera=function(x,e,cn,tx){
                         //emitter for mjpeg
                         if(!e.details.stream_mjpeg_clients||e.details.stream_mjpeg_clients===''||isNaN(e.details.stream_mjpeg_clients)===false){e.details.stream_mjpeg_clients=20;}else{e.details.stream_mjpeg_clients=parseInt(e.details.stream_mjpeg_clients)}
                         s.group[e.ke].mon[e.id].emitter = new events.EventEmitter().setMaxListeners(e.details.stream_mjpeg_clients);
-                        s.log(e,{type:'FFMPEG Process Started',msg:{cmd:s.group[e.ke].mon[e.id].ffmpeg}});
+                        s.log(e,{type:lang['Process Started'],msg:{cmd:s.group[e.ke].mon[e.id].ffmpeg}});
                         s.tx({f:'monitor_starting',mode:x,mid:e.id,time:s.formattedTime()},'GRP_'+e.ke);
                         //start workers
                         if(e.type==='jpeg'){
@@ -3215,6 +3687,12 @@ s.camera=function(x,e,cn,tx){
                                    s.group[e.ke].mon[e.id].emitter.emit('data',d);
                                }
                            break;
+                           case'h265':
+                               e.frame_to_stream=function(d){
+                                   resetStreamCheck()
+                                   s.group[e.ke].mon[e.id].emitter.emit('data',d);
+                               }
+                           break;
 //                               case'pam':
 //                                   s.group[e.ke].mon[e.id].p2pStream = new P2P();
 //                                   s.group[e.ke].mon[e.id].spawn.stdout.pipe(s.group[e.ke].mon[e.id].p2pStream)
@@ -3245,7 +3723,7 @@ s.camera=function(x,e,cn,tx){
                        }
                         if(e.frame_to_stream){
                             if(e.coProcessor === true && e.details.stream_type === ('b64'||'mjpeg')){
-                                
+
                             }else{
                                 s.group[e.ke].mon[e.id].spawn.stdout.on('data',e.frame_to_stream)
                             }
@@ -3447,318 +3925,6 @@ s.camera=function(x,e,cn,tx){
                 launchMonitorProcesses();
             }
         break;
-        case'motion':
-            var d=e;
-            if(s.group[d.ke].mon[d.id].open){
-                d.details.videoTime = s.group[d.ke].mon[d.id].open;
-            }
-            var detailString = JSON.stringify(d.details);
-            if(!s.group[d.ke]||!s.group[d.ke].mon[d.id]){
-                return s.systemLog(lang['No Monitor Found, Ignoring Request'])
-            }
-            d.mon=s.group[d.ke].mon_conf[d.id];
-            if(!s.group[d.ke].mon[d.id].detector_motion_count){
-                s.group[d.ke].mon[d.id].detector_motion_count=0
-            }
-            s.group[d.ke].mon[d.id].detector_motion_count+=1
-            if(s.group[d.ke].mon[d.id].motion_lock){
-                return
-            }
-            var detector_lock_timeout
-            if(!d.mon.details.detector_lock_timeout||d.mon.details.detector_lock_timeout===''){
-                detector_lock_timeout = 2000
-            }
-            detector_lock_timeout = parseFloat(d.mon.details.detector_lock_timeout);
-            if(!s.group[d.ke].mon[d.id].detector_lock_timeout){
-                s.group[d.ke].mon[d.id].detector_lock_timeout=setTimeout(function(){
-                    clearTimeout(s.group[d.ke].mon[d.id].detector_lock_timeout)
-                    delete(s.group[d.ke].mon[d.id].detector_lock_timeout)
-                },detector_lock_timeout)
-            }else{
-                return
-            }
-            if(d.doObjectDetection !== true){
-                //save this detection result in SQL, only coords. not image.
-                if(d.mon.details.detector_save==='1'){
-                    s.sqlQuery('INSERT INTO Events (ke,mid,details) VALUES (?,?,?)',[d.ke,d.id,detailString])
-                }
-                if(d.mon.details.detector_notrigger=='1'){
-                    var detector_notrigger_timeout
-                    if(!d.mon.details.detector_notrigger_timeout||d.mon.details.detector_notrigger_timeout===''){
-                        detector_notrigger_timeout = 10
-                    }
-                    detector_notrigger_timeout = parseFloat(d.mon.details.detector_notrigger_timeout)*1000*60;
-                    s.group[e.ke].mon[e.id].detector_notrigger_timeout = detector_notrigger_timeout;
-                    clearInterval(s.group[d.ke].mon[d.id].detector_notrigger_timeout)
-                    s.group[d.ke].mon[d.id].detector_notrigger_timeout = setInterval(s.group[d.ke].mon[d.id].detector_notrigger_timeout_function,detector_notrigger_timeout)
-                }
-                if(d.mon.details.detector_webhook=='1'){
-                    var detector_webhook_url = d.mon.details.detector_webhook_url
-                        .replace(/{{TIME}}/g,s.timeObject(new Date).format())
-                        .replace(/{{REGION_NAME}}/g,d.details.name)
-                        .replace(/{{SNAP_PATH}}/g,s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg')
-                        .replace(/{{MONITOR_ID}}/g,d.id)
-                        .replace(/{{GROUP_KEY}}/g,d.ke)
-                        .replace(/{{DETAILS}}/g,detailString)
-                    http.get(detector_webhook_url, function(data) {
-                          data.setEncoding('utf8');
-                          var chunks='';
-                          data.on('data', (chunk) => {
-                              chunks+=chunk;
-                          });
-                          data.on('end', () => {
-
-                          });
-
-                    }).on('error', function(e) {
-
-                    }).end();
-                }
-                var detector_timeout
-                if(!d.mon.details.detector_timeout||d.mon.details.detector_timeout===''){
-                    detector_timeout = 10
-                }else{
-                    detector_timeout = parseFloat(d.mon.details.detector_timeout)
-                }
-                if(d.mon.mode=='start'&&d.mon.details.detector_trigger==='1'&&d.mon.details.detector_record_method==='sip'){
-                    //s.group[d.ke].mon[d.id].eventBasedRecording.timeout
-    //                clearTimeout(s.group[d.ke].mon[d.id].eventBasedRecording.timeout)
-                    s.group[d.ke].mon[d.id].eventBasedRecording.timeout = setTimeout(function(){
-                        s.group[d.ke].mon[d.id].eventBasedRecording.allowEnd=true;
-                    },detector_timeout * 950 * 60)
-                    if(!s.group[d.ke].mon[d.id].eventBasedRecording.process){
-                        if(!d.auth){
-                            d.auth=s.gid();
-                        }
-                        if(!s.group[d.ke].users[d.auth]){
-                            s.group[d.ke].users[d.auth]={system:1,details:{},lang:lang}
-                        }
-                        s.group[d.ke].mon[d.id].eventBasedRecording.allowEnd = false;
-                        var runRecord = function(){
-                            var filename = s.formattedTime()+'.mp4'
-                            s.log(d,{type:"Traditional Recording",msg:"Started"})
-                            //-t 00:'+s.timeObject(new Date(detector_timeout * 1000 * 60)).format('mm:ss')+'
-                            s.group[d.ke].mon[d.id].eventBasedRecording.process = spawn(config.ffmpegDir,s.splitForFFPMEG(('-loglevel warning -analyzeduration 1000000 -probesize 1000000 -re -i http://'+config.ip+':'+config.port+'/'+d.auth+'/hls/'+d.ke+'/'+d.id+'/detectorStream.m3u8 -t 00:'+s.timeObject(new Date(detector_timeout * 1000 * 60)).format('mm:ss')+' -c:v copy -strftime 1 "'+s.video('getDir',d.mon) + filename + '"').replace(/\s+/g,' ').trim()))
-                            var ffmpegError='';
-                            var error
-                            s.group[d.ke].mon[d.id].eventBasedRecording.process.stderr.on('data',function(data){
-                                s.log(d,{type:"Traditional Recording",msg:data.toString()})
-                            })
-                            s.group[d.ke].mon[d.id].eventBasedRecording.process.on('close',function(){
-                                if(!s.group[d.ke].mon[d.id].eventBasedRecording.allowEnd){
-                                    s.log(d,{type:"Traditional Recording",msg:"Detector Recording Process Exited Prematurely. Restarting."})
-                                    runRecord()
-                                    return
-                                }
-                                s.video('insertCompleted',d.mon,{
-                                    file : filename
-                                })
-                                s.log(d,{type:"Traditional Recording",msg:"Detector Recording Complete"})
-                                delete(s.group[d.ke].users[d.auth])
-                                s.log(d,{type:"Traditional Recording",msg:'Clear Recorder Process'})
-                                delete(s.group[d.ke].mon[d.id].eventBasedRecording.process)
-                                delete(s.group[d.ke].mon[d.id].eventBasedRecording.timeout)
-                                clearTimeout(s.group[d.ke].mon[d.id].checker)
-                            })
-                        }
-                        runRecord()
-                    }
-                }else if(d.mon.mode!=='stop'&&d.mon.details.detector_trigger=='1'&&d.mon.details.detector_record_method==='hot'){
-                    if(!d.auth){
-                        d.auth=s.gid();
-                    }
-                    if(!s.group[d.ke].users[d.auth]){
-                        s.group[d.ke].users[d.auth]={system:1,details:{},lang:lang}
-                    }
-                    d.urlQuery=[]
-                    d.url='http://'+config.ip+':'+config.port+'/'+d.auth+'/monitor/'+d.ke+'/'+d.id+'/record/'+detector_timeout+'/min';
-                    if(d.mon.details.watchdog_reset!=='0'){
-                        d.urlQuery.push('reset=1')
-                    }
-                    if(d.mon.details.detector_trigger_record_fps&&d.mon.details.detector_trigger_record_fps!==''&&d.mon.details.detector_trigger_record_fps!=='0'){
-                        d.urlQuery.push('fps='+d.mon.details.detector_trigger_record_fps)
-                    }
-                    if(d.urlQuery.length>0){
-                        d.url+='?'+d.urlQuery.join('&')
-                    }
-                    http.get(d.url, function(data) {
-                        data.setEncoding('utf8');
-                        var chunks='';
-                        data.on('data', (chunk) => {
-                            chunks+=chunk;
-                        });
-                        data.on('end', () => {
-                            delete(s.group[d.ke].users[d.auth])
-                            d.cx.f='detector_record_engaged';
-                            d.cx.msg=JSON.parse(chunks);
-                            s.tx(d.cx,'GRP_'+d.ke);
-                        });
-
-                    }).on('error', function(e) {
-
-                    }).end();
-                }
-                var screenshotName = 'Motion_'+(d.mon.name.replace(/[^\w\s]/gi,''))+'_'+d.id+'_'+d.ke+'_'+s.formattedTime()
-                var screenshotBuffer = null
-                var detectorStreamBuffers = null
-                
-                //discord bot
-                if(d.mon.details.detector_discordbot === '1' && !s.group[d.ke].mon[d.id].detector_discordbot){
-                    var detector_discordbot_timeout
-                    if(!d.mon.details.detector_discordbot_timeout||d.mon.details.detector_discordbot_timeout===''){
-                        detector_discordbot_timeout = 1000*60*10;
-                    }else{
-                        detector_discordbot_timeout = parseFloat(d.mon.details.detector_discordbot_timeout)*1000*60;
-                    }
-                    //lock mailer so you don't get emailed on EVERY trigger event.
-                    s.group[d.ke].mon[d.id].detector_discordbot=setTimeout(function(){
-                        //unlock so you can mail again.
-                        clearTimeout(s.group[d.ke].mon[d.id].detector_discordbot);
-                        delete(s.group[d.ke].mon[d.id].detector_discordbot);
-                    },detector_discordbot_timeout);
-                    var files = []
-                    var sendAlert = function(){
-                        s.discordMsg({
-                            author: {
-                              name: s.group[d.ke].mon_conf[d.id].name,
-                              icon_url: "https://shinobi.video/libs/assets/icon/apple-touch-icon-152x152.png"
-                            },
-                            title: lang.Event+' - '+screenshotName,
-                            description: lang.EventText1+' '+s.timeObject(new Date).format(),
-                            fields: [],
-                            timestamp: new Date(),
-                            footer: {
-                              icon_url: "https://shinobi.video/libs/assets/icon/apple-touch-icon-152x152.png",
-                              text: "Shinobi Systems"
-                            }
-                        },files,d.ke)
-                    }
-                    if(d.mon.details.detector_discordbot_send_video === '1'){
-                        if(!detectorStreamBuffers){
-                            detectorStreamBuffers = s.getDetectorStreams(d)
-                        }
-                        detectorStreamBuffers.slice(detectorStreamBuffers.length - 2,detectorStreamBuffers.length).forEach(function(filepath,n){
-                            files.push({
-                                attachment: filepath,
-                                name: 'Video Clip '+n+'.ts'
-                            })
-                        })
-                    }
-                    if(screenshotBuffer){
-                        sendAlert()
-                    }else if(d.mon.details.snap === '1'){
-                        fs.readFile(s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg',function(err, frame){
-                            if(err){
-                                s.systemLog(lang.EventText2+' '+d.ke+' '+d.id,err)
-                            }else{
-                                screenshotBuffer = frame
-                                files.push({
-                                    attachment: screenshotBuffer,
-                                    name: screenshotName+'.jpg'
-                                })
-                            }
-                            sendAlert()
-                        })
-                    }else{
-                        sendAlert()
-                    }
-                }
-                //mailer
-                if(config.mail && !s.group[d.ke].mon[d.id].detector_mail && d.mon.details.detector_mail === '1'){
-                    s.sqlQuery('SELECT mail FROM Users WHERE ke=? AND details NOT LIKE ?',[d.ke,'%"sub"%'],function(err,r){
-                        r=r[0];
-                        var detector_mail_timeout
-                        if(!d.mon.details.detector_mail_timeout||d.mon.details.detector_mail_timeout===''){
-                            detector_mail_timeout = 1000*60*10;
-                        }else{
-                            detector_mail_timeout = parseFloat(d.mon.details.detector_mail_timeout)*1000*60;
-                        }
-                        //lock mailer so you don't get emailed on EVERY trigger event.
-                        s.group[d.ke].mon[d.id].detector_mail=setTimeout(function(){
-                            //unlock so you can mail again.
-                            clearTimeout(s.group[d.ke].mon[d.id].detector_mail);
-                            delete(s.group[d.ke].mon[d.id].detector_mail);
-                        },detector_mail_timeout);
-                        var files = []
-                        var mailOptions = {
-                            from: config.mail.from, // sender address
-                            to: r.mail, // list of receivers
-                            subject: lang.Event+' - '+screenshotName, // Subject line
-                            html: '<i>'+lang.EventText1+' '+s.timeObject(new Date).format()+'.</i>',
-                            attachments: files
-                        }
-                        var sendMail = function(){
-                            Object.keys(d.details).forEach(function(v,n){
-                                mailOptions.html+='<div><b>'+v+'</b> : '+d.details[v]+'</div>'
-                            })
-                            nodemailer.sendMail(mailOptions, (error, info) => {
-                                if (error) {
-                                    s.systemLog(lang.MailError,error)
-                                    return false;
-                                }
-                            })
-                        }
-                        if(d.mon.details.detector_mail_send_video === '1'){
-                            if(!detectorStreamBuffers){
-                                detectorStreamBuffers = s.getDetectorStreams(d)
-                            }
-                            detectorStreamBuffers.slice(detectorStreamBuffers.length - 2,detectorStreamBuffers.length).forEach(function(filepath,n){
-                                files.push({
-                                    filename: 'Video Clip '+n+'.ts',
-                                    content: fs.readFileSync(filepath)
-                                })
-                            })
-                        }
-                        if(screenshotBuffer){
-                            sendMail()
-                        }else if(d.mon.details.snap === '1'){
-                            fs.readFile(s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg',function(err, frame){
-                                if(err){
-                                    s.systemLog(lang.EventText2+' '+d.ke+' '+d.id,err)
-                                }else{
-                                    screenshotBuffer = frame
-                                    files.push({
-                                        filename: screenshotName+'.jpg',
-                                        content: frame
-                                    })
-                                }
-                                sendMail()
-                            })
-                        }else{
-                            sendMail()
-                        }
-                    });
-                }
-                if(d.mon.details.detector_command_enable==='1'&&!s.group[d.ke].mon[d.id].detector_command){
-                    var detector_command_timeout
-                    if(!d.mon.details.detector_command_timeout||d.mon.details.detector_command_timeout===''){
-                        detector_command_timeout = 1000*60*10;
-                    }else{
-                        detector_command_timeout = parseFloat(d.mon.details.detector_command_timeout)*1000*60;
-                    }
-                    s.group[d.ke].mon[d.id].detector_command=setTimeout(function(){
-                        clearTimeout(s.group[d.ke].mon[d.id].detector_command);
-                        delete(s.group[d.ke].mon[d.id].detector_command);
-
-                    },detector_command_timeout);
-                    var detector_command = d.mon.details.detector_command
-                        .replace(/{{TIME}}/g,s.timeObject(new Date).format())
-                        .replace(/{{REGION_NAME}}/g,d.details.name)
-                        .replace(/{{SNAP_PATH}}/g,s.dir.streams+'/'+d.ke+'/'+d.id+'/s.jpg')
-                        .replace(/{{MONITOR_ID}}/g,d.id)
-                        .replace(/{{GROUP_KEY}}/g,d.ke)
-                        .replace(/{{DETAILS}}/g,detailString)
-                    if(d.details.confidence){
-                        detector_command = detector_command
-                        .replace(/{{CONFIDENCE}}/g,d.details.confidence)
-                    }
-                    exec(detector_command,{detached: true})
-                }
-            }
-            //show client machines the event
-            d.cx={f:'detector_trigger',id:d.id,ke:d.ke,details:d.details,doObjectDetection:d.doObjectDetection};
-            s.tx(d.cx,'DETECTOR_'+d.ke+d.id);
-        break;
     }
     if(typeof cn==='function'){setTimeout(function(){cn()},1000);}
 }
@@ -3767,7 +3933,7 @@ s.camera=function(x,e,cn,tx){
 s.pluginEventController=function(d){
     switch(d.f){
         case'trigger':
-            s.camera('motion',d)
+            s.event('trigger',d)
         break;
         case's.tx':
             s.tx(d.data,d.to)
@@ -3812,7 +3978,6 @@ s.pluginInitiatorSuccess=function(mode,d,cn){
     s.api[d.plug]={pluginEngine:d.plug,permissions:{},details:{},ip:'0.0.0.0'};
 }
 s.pluginInitiatorFail=function(mode,d,cn){
-    s.connectedPlugins[d.plug].plugged=false
     if(mode==='client'){
         //is in client mode (camera.js is client)
         cn.disconnect()
@@ -3883,6 +4048,79 @@ var tx;
             }else{
                 cn.disconnect()
             }
+        }
+    })
+    //unique Base64 socket stream
+    cn.on('h265',function(d){
+        if(!s.group[d.ke]||!s.group[d.ke].mon||!s.group[d.ke].mon[d.id]){
+            cn.disconnect();return;
+        }
+        cn.ip=cn.request.connection.remoteAddress;
+        var toUTC = function(){
+            return new Date().toISOString();
+        }
+        var tx=function(z){cn.emit('data',z);}
+        d.failed=function(msg){
+            tx({f:'stop_reconnect',msg:msg,token_used:d.auth,ke:d.ke});
+            cn.disconnect();
+        }
+        d.success=function(r){
+            r=r[0];
+            var Emitter,chunkChannel
+            if(!d.channel){
+                Emitter = s.group[d.ke].mon[d.id].emitter
+                chunkChannel = 'MAIN'
+            }else{
+                Emitter = s.group[d.ke].mon[d.id].emitterChannel[parseInt(d.channel)+config.pipeAddition]
+                chunkChannel = parseInt(d.channel)+config.pipeAddition
+            }
+            if(!Emitter){
+                cn.disconnect();return;
+            }
+            if(!d.channel)d.channel = 'MAIN';
+            cn.ke=d.ke,
+            cn.uid=d.uid,
+            cn.auth=d.auth;
+            cn.channel=d.channel;
+            cn.removeListenerOnDisconnect=true;
+            cn.socketVideoStream=d.id;
+            var contentWriter
+            cn.closeSocketVideoStream = function(){
+                Emitter.removeListener('data', contentWriter);
+            }
+            Emitter.on('data',contentWriter = function(base64){
+                tx(base64)
+            })
+         }
+        //check if auth key is user's temporary session key
+        if(s.group[d.ke]&&s.group[d.ke].users&&s.group[d.ke].users[d.auth]){
+            d.success(s.group[d.ke].users[d.auth]);
+        }else{
+            s.sqlQuery('SELECT ke,uid,auth,mail,details FROM Users WHERE ke=? AND auth=? AND uid=?',[d.ke,d.auth,d.uid],function(err,r) {
+                if(r&&r[0]){
+                    d.success(r)
+                }else{
+                    s.sqlQuery('SELECT * FROM API WHERE ke=? AND code=? AND uid=?',[d.ke,d.auth,d.uid],function(err,r) {
+                        if(r&&r[0]){
+                            r=r[0]
+                            r.details=JSON.parse(r.details)
+                            if(r.details.auth_socket==='1'){
+                                s.sqlQuery('SELECT ke,uid,auth,mail,details FROM Users WHERE ke=? AND uid=?',[r.ke,r.uid],function(err,r) {
+                                    if(r&&r[0]){
+                                        d.success(r)
+                                    }else{
+                                        d.failed('User not found')
+                                    }
+                                })
+                            }else{
+                                d.failed('Permissions for this key do not allow authentication with Websocket')
+                            }
+                        }else{
+                            d.failed('Not an API key')
+                        }
+                    })
+                }
+            })
         }
     })
     //unique Base64 socket stream
@@ -5033,42 +5271,42 @@ var tx;
             break;
         }
     })
-     //functions for retrieving cron announcements	
-     cn.on('cron',function(d){	
-         if(d.f==='init'){	
-             if(config.cron.key){	
-                 if(config.cron.key===d.cronKey){	
-                    s.cron={started:moment(),last_run:moment(),id:cn.id};	
-                 }else{	
-                     cn.disconnect()	
-                 }	
-             }else{	
-                 s.cron={started:moment(),last_run:moment(),id:cn.id};	
-             }	
-         }else{	
-             if(s.cron&&cn.id===s.cron.id){	
-                 delete(d.cronKey)	
-                 switch(d.f){	
+     //functions for retrieving cron announcements
+     cn.on('cron',function(d){
+         if(d.f==='init'){
+             if(config.cron.key){
+                 if(config.cron.key===d.cronKey){
+                    s.cron={started:moment(),last_run:moment(),id:cn.id};
+                 }else{
+                     cn.disconnect()
+                 }
+             }else{
+                 s.cron={started:moment(),last_run:moment(),id:cn.id};
+             }
+         }else{
+             if(s.cron&&cn.id===s.cron.id){
+                 delete(d.cronKey)
+                 switch(d.f){
                      case'filters':
-                         s.filterEvents(d.ff,d);	
-                     break;	
-                     case's.tx':	
-                         s.tx(d.data,d.to)	
-                     break;	
-                     case's.video':	
-                         s.video(d.data,d.file)	
-                     break;	
-                     case'start':case'end':	
-                         d.mid='_cron';s.log(d,{type:'cron',msg:d.msg})	
-                     break;	
-                     default:	
-                         s.systemLog('CRON : ',d)	
-                     break;	
-                 }	
-             }else{	
-                 cn.disconnect()	
-             }	
-         }	
+                         s.filterEvents(d.ff,d);
+                     break;
+                     case's.tx':
+                         s.tx(d.data,d.to)
+                     break;
+                     case's.video':
+                         s.video(d.data,d.file)
+                     break;
+                     case'start':case'end':
+                         d.mid='_cron';s.log(d,{type:'cron',msg:d.msg})
+                     break;
+                     default:
+                         s.systemLog('CRON : ',d)
+                     break;
+                 }
+             }else{
+                 cn.disconnect()
+             }
+         }
      })
     cn.on('disconnect', function () {
         if(cn.socketVideoStream){
@@ -5097,8 +5335,8 @@ var tx;
             s.tx({f:'plugin_engine_unplugged',plug:cn.pluginEngine},'CPU')
             delete(s.api[cn.pluginEngine])
         }
-        if(cn.cron){	
-            delete(s.cron);	
+        if(cn.cron){
+            delete(s.cron);
         }
         if(cn.ocv){
             s.tx({f:'detector_unplugged',plug:s.ocv.plug},'CPU')
@@ -5296,6 +5534,8 @@ if(config.renderPaths === undefined){config.renderPaths={}}
     if(config.renderPaths.mjpeg === undefined){config.renderPaths.mjpeg='pages/mjpeg'}
     //gridstack only page
     if(config.renderPaths.grid === undefined){config.renderPaths.grid='pages/grid'}
+    //slick.js (cycle) page
+    if(config.renderPaths.cycle === undefined){config.renderPaths.cycle='pages/cycle'}
 ////Pages
 app.enable('trust proxy');
 app.use('/libs',express.static(__dirname + '/web/libs'));
@@ -5337,7 +5577,7 @@ app.get(config.webPaths.admin, function (req,res){
 });
 //super page
 app.get(config.webPaths.super, function (req,res){
-    
+
     res.render(config.renderPaths.index,{lang:lang,config:config,screen:'super',originalURL:s.getOriginalUrl(req)},function(err,html){
         if(err){
             s.systemLog(err)
@@ -5524,7 +5764,8 @@ app.post([config.webPaths.home,s.checkCorrectPathEnding(config.webPaths.home)+':
                             }
                             if(!r.details.acceptedMachines[req.body.machineID]){
                                 req.complete=function(){
-                                    s.factorAuth[r.ke][r.uid].info=req.resp;
+                                    s.factorAuth[r.ke][r.uid].function = req.body.function
+                                    s.factorAuth[r.ke][r.uid].info = req.resp
                                     clearTimeout(s.factorAuth[r.ke][r.uid].expireAuth)
                                     s.factorAuth[r.ke][r.uid].expireAuth=setTimeout(function(){
                                         s.deleteFactorAuth(r)
@@ -5534,20 +5775,37 @@ app.post([config.webPaths.home,s.checkCorrectPathEnding(config.webPaths.home)+':
                                 if(!s.factorAuth[r.ke]){s.factorAuth[r.ke]={}}
                                 if(!s.factorAuth[r.ke][r.uid]){
                                     s.factorAuth[r.ke][r.uid]={key:s.nid(),user:r}
-                                    r.mailOptions = {
-                                        from: config.mail.from,
-                                        to: r.mail,
-                                        subject: r.lang['2-Factor Authentication'],
-                                        html: r.lang['Enter this code to proceed']+' <b>'+s.factorAuth[r.ke][r.uid].key+'</b>. '+r.lang.FactorAuthText1,
-                                    };
-                                    nodemailer.sendMail(r.mailOptions, (error, info) => {
-                                        if (error) {
-                                            s.systemLog(r.lang.MailError,error)
-                                            req.fn(r)
-                                            return
-                                        }
-                                        req.complete()
-                                    });
+                                    if(r.details.factor_mail !== '0'){
+                                        var mailOptions = {
+                                            from: config.mail.from,
+                                            to: r.mail,
+                                            subject: r.lang['2-Factor Authentication'],
+                                            html: r.lang['Enter this code to proceed']+' <b>'+s.factorAuth[r.ke][r.uid].key+'</b>. '+r.lang.FactorAuthText1,
+                                        };
+                                        nodemailer.sendMail(mailOptions, (error, info) => {
+                                            if (error) {
+                                                s.systemLog(r.lang.MailError,error)
+                                                return
+                                            }
+                                        });
+                                    }
+                                    if(r.details.factor_discord === '1'){
+                                        s.discordMsg({
+                                            author: {
+                                              name: r.lang['2-Factor Authentication'],
+                                              icon_url: config.iconURL
+                                            },
+                                            title: r.lang['Enter this code to proceed'],
+                                            description: '**'+s.factorAuth[r.ke][r.uid].key+'** '+r.lang.FactorAuthText1,
+                                            fields: [],
+                                            timestamp: new Date(),
+                                            footer: {
+                                              icon_url: config.iconURL,
+                                              text: "Shinobi Systems"
+                                            }
+                                        },[],r.ke)
+                                    }
+                                    req.complete()
                                 }else{
                                     req.complete()
                                 }
@@ -5719,7 +5977,8 @@ app.post([config.webPaths.home,s.checkCorrectPathEnding(config.webPaths.home)+':
                             s.sqlQuery("UPDATE Users SET details=? WHERE ke=? AND uid=?",[s.s(req.details),req.body.ke,req.body.id])
                         }
                     }
-                    req.resp=s.factorAuth[req.body.ke][req.body.id].info
+                    req.body.function = s.factorAuth[req.body.ke][req.body.id].function
+                    req.resp = s.factorAuth[req.body.ke][req.body.id].info
                     req.fn(s.factorAuth[req.body.ke][req.body.id].user)
                 }else{
                     req.renderFunction(config.renderPaths.factorAuth,{$user:s.factorAuth[req.body.ke][req.body.id].info,lang:req.lang});
@@ -5814,15 +6073,49 @@ app.get([config.webPaths.apiPrefix+':auth/flv/:ke/:id/s.flv',config.webPaths.api
         },res,req)
     },res,req)
 })
+//Get H.265/h265 HEVC stream
+app.get([config.webPaths.apiPrefix+':auth/h265/:ke/:id/s.hevc',config.webPaths.apiPrefix+':auth/h265/:ke/:id/:channel/s.hevc'], function(req,res) {
+    res.header("Access-Control-Allow-Origin",req.headers.origin);
+    s.auth(req.params,function(user){
+        s.checkChildProxy(req.params,function(){
+            var Emitter,chunkChannel
+            if(!req.params.channel){
+                Emitter = s.group[req.params.ke].mon[req.params.id].emitter
+                chunkChannel = 'MAIN'
+            }else{
+                Emitter = s.group[req.params.ke].mon[req.params.id].emitterChannel[parseInt(req.params.channel)+config.pipeAddition]
+                chunkChannel = parseInt(req.params.channel)+config.pipeAddition
+            }
+            //variable name of contentWriter
+            var contentWriter
+            //set headers
+            res.setHeader('Content-Type', 'video/mp4');
+            res.setHeader('Access-Control-Allow-Origin','*');
+            //write new frames as they happen
+            Emitter.on('data',contentWriter=function(buffer){
+                res.write(buffer)
+            })
+            //remove contentWriter when client leaves
+            res.on('close', function () {
+                Emitter.removeListener('data',contentWriter)
+            })
+        },res,req)
+    },res,req)
+})
 //montage - stand alone squished view with gridstackjs
-app.get([config.webPaths.apiPrefix+':auth/grid/:ke',config.webPaths.apiPrefix+':auth/grid/:ke/:group'], function(req,res) {
+app.get([
+    config.webPaths.apiPrefix+':auth/grid/:ke',
+    config.webPaths.apiPrefix+':auth/grid/:ke/:group',
+    config.webPaths.apiPrefix+':auth/cycle/:ke',
+    config.webPaths.apiPrefix+':auth/cycle/:ke/:group'
+], function(req,res) {
     res.header("Access-Control-Allow-Origin",req.headers.origin);
     s.auth(req.params,function(user){
         if(user.permissions.get_monitors==="0"){
             res.end(user.lang['Not Permitted'])
             return
         }
-        
+
         req.params.protocol=req.protocol;
         req.sql='SELECT * FROM Monitors WHERE mode!=? AND mode!=? AND ke=?';req.ar=['stop','idle',req.params.ke];
         if(!req.params.id){
@@ -5857,7 +6150,7 @@ app.get([config.webPaths.apiPrefix+':auth/grid/:ke',config.webPaths.apiPrefix+':
                             }
                         })
                     }catch(err){
-                        
+
                     }
                 })
                 r = filteredByGroup;
@@ -5901,14 +6194,19 @@ app.get([config.webPaths.apiPrefix+':auth/grid/:ke',config.webPaths.apiPrefix+':
                     }
                 }
             })
-            res.render(config.renderPaths.grid,{
+            var page = config.renderPaths.grid
+            if(req.path.indexOf('/cycle/') > -1){
+                page = config.renderPaths.cycle
+            }
+            res.render(page,{
                 data:Object.assign(req.params,req.query),
                 baseUrl:req.protocol+'://'+req.hostname,
                 config:config,
                 lang:user.lang,
                 $user:user,
                 monitors:r,
-                originalURL:s.getOriginalUrl(req)
+                originalURL:s.getOriginalUrl(req),
+                query:req.query
             });
         })
     },res,req)
@@ -6918,7 +7216,7 @@ app.get(config.webPaths.apiPrefix+':auth/motion/:ke/:id', function (req,res){
             res.end(user.lang['No Group with this key exists']);
             return;
         }
-        s.camera('motion',d,function(){
+        s.event('trigger',d,function(){
             res.end(user.lang['Trigger Successful'])
         });
     },res,req);
@@ -7441,7 +7739,7 @@ if(config.childNodes.enabled === true && config.childNodes.mode === 'master'){
         })
     })
 }else
-//setup Child for childNodes    
+//setup Child for childNodes
 if(config.childNodes.enabled === true && config.childNodes.mode === 'child' && config.childNodes.host){
     s.connected = false;
     childIO = require('socket.io-client')('ws://'+config.childNodes.host);

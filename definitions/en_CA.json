@@ -248,11 +248,15 @@
             "info": [
                {
                   "name": "detail=stream_type",
-                  "field": "Stream  Type",
+                  "field": "Stream Type",
                   "description": "The method that will used to consume the video stream.",
                   "default": "HLS",
                   "example": "",
                   "possible": [
+                     {
+                        "name": "Poseidon",
+                        "info": "Simulates a streaming MP4 file but using the data of a live stream. Includes Audio. Some browsers can play it like a regular MP4 file. Streams over HTTP or WebSocket."
+                     },
                      {
                         "name": "MJPEG",
                         "info": "Standard Motion JPEG image. No audio."
