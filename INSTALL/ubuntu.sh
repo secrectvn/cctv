@@ -31,6 +31,7 @@ if [ "$nodejsinstall" = "y" ] || [ "$nodejsinstall" = "Y" ]; then
     ./setup_8.x
     sudo apt install nodejs -y
 fi
+sudo apt install make -y
 echo "============="
 echo "Shinobi - Do you want to Install FFMPEG?"
 echo "(y)es or (N)o"
@@ -62,7 +63,7 @@ if [ "$ffmpeginstall" = "y" ] || [ "$ffmpeginstall" = "Y" ]; then
             echo "============="
         fi
     else
-        sudo npm install ffmpeg-static
+        sudo npm install ffmpeg-static@2.2.1
     fi
 fi
 echo "============="
@@ -146,7 +147,9 @@ else
 fi
 echo "============="
 echo "Shinobi - Install NPM Libraries"
-sudo npm install
+sudo npm i npm -g
+sudo npm install --unsafe-perm
+sudo npm audit fix --unsafe-perm
 echo "============="
 echo "Shinobi - Install PM2"
 sudo npm install pm2 -g

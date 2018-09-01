@@ -816,8 +816,6 @@ s.init=function(x,e,k,fn){
                 s.group[e.ke].init={}
             }
             if(!s.group[e.ke].fileBin){s.group[e.ke].fileBin={}};
-            if(!s.group[e.ke].sizeChangeQueue){s.group[e.ke].sizeChangeQueue=[]}
-            if(!s.group[e.ke].sizePurgeQueue){s.group[e.ke].sizePurgeQueue=[]}
             if(!s.group[e.ke].users){s.group[e.ke].users={}}
             if(!s.group[e.ke].dashcamUsers){s.group[e.ke].dashcamUsers={}}
             if(!e.limit||e.limit===''){e.limit=10000}else{e.limit=parseFloat(e.limit)}
@@ -892,6 +890,65 @@ s.init=function(x,e,k,fn){
                             })
                             s.group[e.ke].discordBot.login(ar.discordbot_token)
                         }
+                        //disk Used Emitter
+                        if(!s.group[e.ke].diskUsedEmitter){
+                            s.group[e.ke].diskUsedEmitter = new events.EventEmitter()
+                            s.group[e.ke].diskUsedEmitter.on('data',function(currentChange){
+                                //validate current values
+                                if(!s.group[e.ke].usedSpace){
+                                    s.group[e.ke].usedSpace=0
+                                }else{
+                                    s.group[e.ke].usedSpace=parseFloat(s.group[e.ke].usedSpace)
+                                }
+                                if(s.group[e.ke].usedSpace<0||isNaN(s.group[e.ke].usedSpace)){
+                                    s.group[e.ke].usedSpace=0
+                                }
+                                //change global size value
+                                s.group[e.ke].usedSpace=s.group[e.ke].usedSpace+currentChange
+                                //remove value just used from queue
+                                s.init('diskUsedEmit',e)
+                            })
+                            s.group[e.ke].diskPurgedEmitter = new events.EventEmitter()
+                            s.group[e.ke].diskPurgedEmitter.on('data',function(currentPurge){
+                                s.init('diskUsedSet',e,currentPurge.filesizeMB)
+                                if(config.cron.deleteOverMax===true){
+                                        //set queue processor
+                                        var finish=function(){
+                                            s.init('diskUsedEmit',e)
+                                        }
+                                        var deleteVideos = function(){
+                                            //run purge command
+                                            if(s.group[e.ke].usedSpace>(s.group[e.ke].sizeLimit*config.cron.deleteOverMaxOffset)){
+                                                    s.sqlQuery('SELECT * FROM Videos WHERE status != 0 AND details NOT LIKE \'%"archived":"1"%\' AND ke=? ORDER BY `time` ASC LIMIT 2',[e.ke],function(err,evs){
+                                                        k.del=[];k.ar=[e.ke];
+                                                        if(!evs)return console.log(err)
+                                                        evs.forEach(function(ev){
+                                                            ev.dir=s.video('getDir',ev)+s.formattedTime(ev.time)+'.'+ev.ext;
+                                                            k.del.push('(mid=? AND `time`=?)');
+                                                            k.ar.push(ev.mid),k.ar.push(ev.time);
+                                                            s.file('delete',ev.dir);
+                                                            s.init('diskUsedSet',e,-(ev.size/1000000))
+                                                            s.tx({f:'video_delete',ff:'over_max',filename:s.formattedTime(ev.time)+'.'+ev.ext,mid:ev.mid,ke:ev.ke,time:ev.time,end:s.formattedTime(new Date,'YYYY-MM-DD HH:mm:ss')},'GRP_'+e.ke);
+                                                        });
+                                                        if(k.del.length>0){
+                                                            k.qu=k.del.join(' OR ');
+                                                            s.sqlQuery('DELETE FROM Videos WHERE ke =? AND ('+k.qu+')',k.ar,function(){
+                                                                deleteVideos()
+                                                            })
+                                                        }else{
+                                                            finish()
+                                                        }
+                                                    })
+                                            }else{
+                                                finish()
+                                            }
+                                        }
+                                        deleteVideos()
+                                }else{
+                                    s.init('diskUsedEmit',e)
+                                }
+                            })
+                        }
                         Object.keys(ar).forEach(function(v){
                             s.group[e.ke].init[v]=ar[v]
                         })
@@ -943,37 +1000,7 @@ s.init=function(x,e,k,fn){
         break;
         case'diskUsedSet':
             //`k` will be used as the value to add or substract
-            s.group[e.ke].sizeChangeQueue.push(k)
-            if(s.group[e.ke].sizeChanging!==true){
-                //lock this function
-                s.group[e.ke].sizeChanging=true
-                //validate current values
-                if(!s.group[e.ke].usedSpace){
-                    s.group[e.ke].usedSpace=0
-                }else{
-                    s.group[e.ke].usedSpace=parseFloat(s.group[e.ke].usedSpace)
-                }
-                if(s.group[e.ke].usedSpace<0||isNaN(s.group[e.ke].usedSpace)){
-                    s.group[e.ke].usedSpace=0
-                }
-                //set queue processor
-                var checkQueue=function(){
-                    //get first in queue
-                    var currentChange = s.group[e.ke].sizeChangeQueue[0]
-                    //change global size value
-                    s.group[e.ke].usedSpace=s.group[e.ke].usedSpace+currentChange
-                    //remove value just used from queue
-                    s.group[e.ke].sizeChangeQueue = s.group[e.ke].sizeChangeQueue.splice(1,s.group[e.ke].sizeChangeQueue.length+10)
-                    //do next one
-                    if(s.group[e.ke].sizeChangeQueue.length>0){
-                        checkQueue()
-                    }else{
-                        s.group[e.ke].sizeChanging=false
-                        s.init('diskUsedEmit',e)
-                    }
-                }
-                checkQueue()
-            }
+            s.group[e.ke].diskUsedEmitter.emit('data',k)
         break;
         case'monitorStatus':
 //            s.discordMsg({
@@ -1243,64 +1270,9 @@ s.video=function(x,e,k){
                 v.details = details
             })
         break;
-        case'diskUseUpdate':
+        case'diskUseUpdate'://sizePurgeQueue
             if(s.group[e.ke].init){
-                s.init('diskUsedSet',e,e.filesizeMB)
-                if(config.cron.deleteOverMax===true){
-                    //check space
-                    s.group[e.ke].sizePurgeQueue.push(1)
-                    if(s.group[e.ke].sizePurging!==true){
-                        //lock this function
-                        s.group[e.ke].sizePurging=true
-                        //set queue processor
-                        var finish=function(){
-                            //remove value just used from queue
-                            s.group[e.ke].sizePurgeQueue = s.group[e.ke].sizePurgeQueue.splice(1,s.group[e.ke].sizePurgeQueue.length+10)
-                            //do next one
-                            if(s.group[e.ke].sizePurgeQueue.length>0){
-                                checkQueue()
-                            }else{
-                                s.group[e.ke].sizePurging=false
-                                s.init('diskUsedEmit',e)
-                            }
-                        }
-                        var checkQueue=function(){
-                            //get first in queue
-                            var currentPurge = s.group[e.ke].sizePurgeQueue[0]
-                            var deleteVideos = function(){
-                                //run purge command
-                                if(s.group[e.ke].usedSpace>(s.group[e.ke].sizeLimit*config.cron.deleteOverMaxOffset)){
-                                        s.sqlQuery('SELECT * FROM Videos WHERE status != 0 AND details NOT LIKE \'%"archived":"1"%\' AND ke=? ORDER BY `time` ASC LIMIT 2',[e.ke],function(err,evs){
-                                            k.del=[];k.ar=[e.ke];
-                                            if(!evs)return console.log(err)
-                                            evs.forEach(function(ev){
-                                                ev.dir=s.video('getDir',ev)+s.formattedTime(ev.time)+'.'+ev.ext;
-                                                k.del.push('(mid=? AND `time`=?)');
-                                                k.ar.push(ev.mid),k.ar.push(ev.time);
-                                                s.file('delete',ev.dir);
-                                                s.init('diskUsedSet',e,-(ev.size/1000000))
-                                                s.tx({f:'video_delete',ff:'over_max',filename:s.formattedTime(ev.time)+'.'+ev.ext,mid:ev.mid,ke:ev.ke,time:ev.time,end:s.formattedTime(new Date,'YYYY-MM-DD HH:mm:ss')},'GRP_'+e.ke);
-                                            });
-                                            if(k.del.length>0){
-                                                k.qu=k.del.join(' OR ');
-                                                s.sqlQuery('DELETE FROM Videos WHERE ke =? AND ('+k.qu+')',k.ar,function(){
-                                                    deleteVideos()
-                                                })
-                                            }else{
-                                                finish()
-                                            }
-                                        })
-                                }else{
-                                    finish()
-                                }
-                            }
-                            deleteVideos()
-                        }
-                        checkQueue()
-                    }
-                }else{
-                    s.init('diskUsedEmit',e)
-                }
+                s.group[e.ke].diskPurgedEmitter.emit('data',k)
             }
         break;
         case'insertCompleted':
@@ -1325,16 +1297,16 @@ s.video=function(x,e,k){
                 if(k.fileExists===true){
                     //close video row
                     k.stat = fs.statSync(k.dir+k.file)
-                    e.filesize = k.stat.size
-                    e.filesizeMB = parseFloat((e.filesize/1000000).toFixed(2))
+                    k.filesize = k.stat.size
+                    k.filesizeMB = parseFloat((k.filesize/1000000).toFixed(2))
 
-                    e.startTime = new Date(s.nameToTime(k.file))
-                    e.endTime = new Date(k.stat.mtime)
+                    k.startTime = new Date(s.nameToTime(k.file))
+                    k.endTime = new Date(k.stat.mtime)
                     if(config.useUTC === true){
-                        fs.rename(k.dir+k.file, k.dir+s.formattedTime(e.startTime)+'.'+e.ext, (err) => {
+                        fs.rename(k.dir+k.file, k.dir+s.formattedTime(k.startTime)+'.'+e.ext, (err) => {
                             if (err) return console.error(err);
                         });
-                        k.filename = s.formattedTime(e.startTime)+'.'+e.ext
+                        k.filename = s.formattedTime(k.startTime)+'.'+e.ext
                     }else{
                         k.filename = k.file
                     }
@@ -1351,8 +1323,8 @@ s.video=function(x,e,k){
                                 filename:k.filename,
                                 d:s.init('noReference',e),
                                 filesize:e.filesize,
-                                time:s.timeObject(e.startTime).format(),
-                                end:s.timeObject(e.endTime).format()
+                                time:s.timeObject(k.startTime).format(),
+                                end:s.timeObject(k.endTime).format()
                             })
                         })
                         .on('close',function(){
@@ -1364,9 +1336,9 @@ s.video=function(x,e,k){
                                 ke:e.ke,
                                 filename:k.filename,
                                 d:s.init('noReference',e),
-                                filesize:e.filesize,
-                                time:s.timeObject(e.startTime).format(),
-                                end:s.timeObject(e.endTime).format()
+                                filesize:k.filesize,
+                                time:s.timeObject(k.startTime).format(),
+                                end:s.timeObject(k.endTime).format()
                             })
                         });
                     }else{
@@ -1378,9 +1350,9 @@ s.video=function(x,e,k){
                             filename:k.filename,
                             mid:e.mid,
                             ke:e.ke,
-                            time:e.startTime,
-                            size:e.filesize,
-                            end:e.endTime
+                            time:k.startTime,
+                            size:k.filesize,
+                            end:k.endTime
                         },'GRP_'+e.ke,'video_view');
                     }
                     //cloud auto savers
@@ -1431,11 +1403,11 @@ s.video=function(x,e,k){
                                 var save = [
                                     e.mid,
                                     e.ke,
-                                    e.startTime,
+                                    k.startTime,
                                     0,
                                     '{}',
-                                    e.filesize,
-                                    e.endTime,
+                                    k.filesize,
+                                    k.endTime,
                                     data.Location
                                 ]
                                 s.sqlQuery('INSERT INTO `Cloud Videos` (mid,ke,time,status,details,size,end,href) VALUES (?,?,?,?,?,?,?,?)',save)
@@ -1450,12 +1422,12 @@ s.video=function(x,e,k){
                     var save = [
                         e.mid,
                         e.ke,
-                        e.startTime,
+                        k.startTime,
                         e.ext,
                         1,
                         s.s(k.details),
-                        e.filesize,
-                        e.endTime,
+                        k.filesize,
+                        k.endTime,
                     ]
                     s.sqlQuery('INSERT INTO Videos (mid,ke,time,ext,status,details,size,end) VALUES (?,?,?,?,?,?,?,?)',save)
                     //send new diskUsage values
@@ -2113,7 +2085,6 @@ s.ffmpeg = function(e){
     if(e.details.cust_stream&&e.details.cust_stream!==''){x.cust_stream=' '+e.details.cust_stream}else{x.cust_stream=''}
     //stream - preset
     if(e.details.stream_type !== 'h265' && e.details.preset_stream && e.details.preset_stream !== ''){x.preset_stream=' -preset '+e.details.preset_stream;}else{x.preset_stream=''}
-    //stream - quality
     //hardware acceleration
     if(e.details.accelerator && e.details.accelerator==='1' && e.isStreamer === false){
         if(e.details.hwaccel&&e.details.hwaccel!==''){
@@ -2283,6 +2254,9 @@ s.ffmpeg = function(e){
         }
         if(!e.details.detector_buffer_acodec||e.details.detector_buffer_acodec===''||e.details.detector_buffer_acodec==='auto'){
             switch(e.type){
+                case'mjpeg':case'jpeg':case'socket':
+                    e.details.detector_buffer_acodec = 'no'
+                break;
                 case'h264':case'hls':case'mp4':
                     e.details.detector_buffer_acodec = 'copy'
                 break;
@@ -2424,7 +2398,7 @@ s.file=function(x,e){
 s.event = function(x,e,cn){
     switch(x){
         case'trigger':
-            var d=e;
+            var d = e;
             var filter = {
                 halt : false,
                 addToMotionCounter : true,
@@ -3693,18 +3667,6 @@ s.camera=function(x,e,cn,tx){
                                    s.group[e.ke].mon[e.id].emitter.emit('data',d);
                                }
                            break;
-//                               case'pam':
-//                                   s.group[e.ke].mon[e.id].p2pStream = new P2P();
-//                                   s.group[e.ke].mon[e.id].spawn.stdout.pipe(s.group[e.ke].mon[e.id].p2pStream)
-//                                   s.group[e.ke].mon[e.id].p2pStream.on('pam',function(d){
-//                                       resetStreamCheck()
-//                                       s.tx({f:'pam_frame',ke:e.ke,id:e.id,imageData:{
-//                                           data : d.pixels,
-//                                           height : d.height,
-//                                           width : d.width
-//                                       }},'MON_STREAM_'+e.id);
-//                                    })
-//                               break;
                            case'b64':case undefined:case null:case'':
                                var buffer
                                e.frame_to_stream=function(d){
@@ -3978,6 +3940,7 @@ s.pluginInitiatorSuccess=function(mode,d,cn){
     s.api[d.plug]={pluginEngine:d.plug,permissions:{},details:{},ip:'0.0.0.0'};
 }
 s.pluginInitiatorFail=function(mode,d,cn){
+    if(s.connectedPlugins[d.plug])s.connectedPlugins[d.plug].plugged=false
     if(mode==='client'){
         //is in client mode (camera.js is client)
         cn.disconnect()
@@ -4050,7 +4013,7 @@ var tx;
             }
         }
     })
-    //unique Base64 socket stream
+    //unique h265 socket stream
     cn.on('h265',function(d){
         if(!s.group[d.ke]||!s.group[d.ke].mon||!s.group[d.ke].mon[d.id]){
             cn.disconnect();return;

@@ -1,0 +1,51 @@
+<%
+if(config.ssl&&config.ssl.port&&data.protocol==='https'){
+    data.port=config.ssl.port
+}else{
+    data.port=config.port
+}
+if(!data.port||data.port===''||data.port==80||data.port==443){data.url=baseUrl}else{data.url=baseUrl+':'+data.port}
+if(data.addon && data.addon.indexOf('relative')>-1){
+    data.url=''
+}
+%>
+<script>
+var data = <%- JSON.stringify(data) %>
+if(!data.group || data.group === ''){
+    data.group = '$'
+}
+</script>
+<link rel="stylesheet" href="<%=data.url%>/libs/css/font-awesome.min.css">
+<link rel="stylesheet" type="text/css" href="<%=data.url%>/libs/css/slick.css"/>
+<style>
+    .cycle-item {
+        
+    }
+</style>
+<script src="<%=data.url%>/libs/js/jquery.min.js"></script>
+<script type="text/javascript" src="<%=data.url%>/libs/js/slick.min.js"></script>
+<div id="slick"></div>
+<script type="text/javascript">
+    $.cycle = {};
+    $(function () {
+        var show = <%-query.show || 1 %>;
+        var scroll = <%-query.scroll || 1 %>;
+        var playSpeed = <%-query.playSpeed || 3000 %>;
+        var cycleEl = $('#slick')
+        var tmp = ''
+        $.each(<%- JSON.stringify(monitors) %>,function(n,monitor){
+            tmp += '<iframe auth="'+data.auth+'" ke="'+data.ke+'" mid="'+monitor.mid+'" class="cycle-item" src="'+data.url+'/'+data.auth+'/embed/'+monitor.ke+'/'+monitor.mid+'/fullscreen|jquery|relative"></iframe>'
+        })
+        cycleEl.html(tmp)
+        cycleEl.slick({
+          slidesToShow: show,
+          slidesToScroll: scroll,
+          autoplay: true,
+          autoplaySpeed: playSpeed,
+        })
+        .on('beforeChange', function(event, slick, currentSlide, nextSlide){
+          console.log(nextSlide)
+        })
+    });
+</script>
+            

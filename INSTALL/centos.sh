@@ -27,6 +27,7 @@ if [ ! -e "./super.json" ]; then
 fi
 echo "Shinobi - Run yum update"
 sudo yum update -y
+sudo yum install make -y
 echo "============="
 echo "Shinobi - Do you want to Install FFMPEG?"
 echo "(y)es or (N)o"
@@ -44,7 +45,7 @@ if [ "$ffmpeginstall" = "y" ] || [ "$ffmpeginstall" = "Y" ]; then
         sudo rpm -Uvh http://li.nux.ro/download/nux/dextop/el7/x86_64/nux-dextop-release-0-1.el7.nux.noarch.rpm
         sudo yum install ffmpeg ffmpeg-devel -y
     else
-        sudo npm install ffmpeg-static
+        sudo npm install ffmpeg-static@2.2.1
     fi
 fi
 echo "Shinobi - Do you want to Install Node.js?"
@@ -132,7 +133,9 @@ else
 fi
 echo "============="
 echo "Shinobi - Install NPM Libraries"
-sudo npm install
+sudo npm i npm -g
+sudo npm install --unsafe-perm
+sudo npm audit fix --unsafe-perm
 echo "============="
 echo "Shinobi - Install PM2"
 sudo npm install pm2 -g

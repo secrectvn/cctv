@@ -1,46 +1,25 @@
-# OpenALPR and Motion Detector
+# Python DLIB
 
-Install required libraries.
+> This plugin requires the use of port `7990` by default. You can specify a different port by adding `pythonPort` to your plugin's conf.json.
 
 **Ubuntu and Debian only**
 
-```
-sudo apt update && sudo apt install libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev build-essential g++ openalpr openalpr-daemon openalpr-utils libopenalpr-dev -y
-```
-
-**Install the Node.js Canvas engine**
+Go to the Shinobi directory. **/home/Shinobi** is the default directory.
 
 ```
-sudo npm install canvas@1.6
-```
-Go to the Shinobi directory. **Below is an example.**
-
-```
-cd /home/Shinobi
+cd /home/Shinobi/plugins/python-dlib
 ```
 
 Copy the config file.
 
 ```
-cp plugins/openalpr/conf.sample.json plugins/openalpr/conf.json
-```
-
-Edit it the new file. Host should be `localhost` and port should match the `listening port for camera.js`.
-
-```
-nano plugins/openalpr/conf.json
+sh INSTALL.sh
 ```
 
 Start the plugin.
 
 ```
-node plugins/openalpr/shinobi-openalpr.js
-```
-
-Or to daemonize with PM2.
-
-```
-pm2 start plugins/openalpr/shinobi-openalpr.js
+pm2 start shinobi-python-dlib.js
 ```
 
 Doing this will reveal options in the monitor configuration. Shinobi does not need to be restarted when a plugin is initiated or stopped.
@@ -51,7 +30,7 @@ Doing this will reveal options in the monitor configuration. Shinobi does not ne
 Edit your plugins configuration file. Set the `hostPort` **to be different** than the `listening port for camera.js`.
 
 ```
-nano plugins/openalpr/conf.json
+nano conf.json
 ```
 
 Here is a sample of a Host configuration for the plugin.
@@ -62,7 +41,7 @@ Here is a sample of a Host configuration for the plugin.
 
 ```
 {
-  "plug":"OpenALPR",
+  "plug":"PythonDlib",
   "hostPort":8082,
   "key":"SomeOpenALPRkeySoPeopleDontMessWithYourShinobi",
   "mode":"host",
@@ -81,7 +60,7 @@ Add the `plugins` array if you don't already have it. Add the following *object 
 ```
   "plugins":[
       {
-          "id" : "OpenALPR",
+          "id" : "PythonDlib",
           "https" : false,
           "host" : "localhost",
           "port" : 8082,
