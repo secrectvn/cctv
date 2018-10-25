@@ -1,0 +1,15 @@
+{
+    "data": {
+        "ip": "[IP ADDRESS]",
+        "details": {
+            "auth_socket": "1",
+            "get_monitors": "1",
+            "control_monitors": "1",
+            "get_logs": "1",
+            "watch_stream": "1",
+            "watch_snapshot": "1",
+            "watch_videos": "1",
+            "delete_videos": "1"
+        }
+    }
+}
