@@ -25,37 +25,38 @@ if [ ! -e "./super.json" ]; then
         sudo cp super.sample.json super.json
     fi
 fi
-echo "Shinobi - Run yum update"
-sudo yum update -y
-sudo yum install make -y
+echo "Shinobi - Run zypper refresh"
+sudo zypper refresh
+sudo zypper install -y make
+echo "============="
+echo "Shinobi - Do you want to Install Node.js?"
+echo "(y)es or (N)o"
+NODEJSINSTALL=0
+read nodejsinstall
+if [ "$nodejsinstall" = "y" ] || [ "$nodejsinstall" = "Y" ]; then
+    sudo zypper install -y nodejs8
+    NODEJSINSTALL=1
+fi
 echo "============="
 echo "Shinobi - Do you want to Install FFMPEG?"
 echo "(y)es or (N)o"
 read ffmpeginstall
 if [ "$ffmpeginstall" = "y" ] || [ "$ffmpeginstall" = "Y" ]; then
-    echo "Shinobi - Do you want to Install FFMPEG with yum or download a static version provided with npm?"
-    echo "(a)pt or (N)pm"
-    echo "Press [ENTER] for default (npm)"
-    read ffmpegstaticinstall
-    if [ "$ffmpegstaticinstall" = "a" ] || [ "$ffmpegstaticinstall" = "A" ]; then
-        #Install EPEL Repo
-        sudo yum install epel-release -y
-        #Enable Nux Dextop repo for FFMPEG
-        sudo rpm --import http://li.nux.ro/download/nux/RPM-GPG-KEY-nux.ro
-        sudo rpm -Uvh http://li.nux.ro/download/nux/dextop/el7/x86_64/nux-dextop-release-0-1.el7.nux.noarch.rpm
-        sudo yum install ffmpeg ffmpeg-devel -y
+    # Without nodejs8 package we can't use npm command
+    if [ "$NODEJSINSTALL" -eq "1" ]; then
+        echo "Shinobi - Do you want to Install FFMPEG with 'zypper --version' or download a static version provided with npm 'npm --version'?"
+        echo "(z)ypper or (N)pm"
+        echo "Press [ENTER] for default (npm)"
+        read ffmpegstaticinstall
+        if [ "$ffmpegstaticinstall" = "z" ] || [ "$ffmpegstaticinstall" = "Z" ]; then
+            # Install ffmpeg and ffmpeg-devel
+            sudo zypper install -y ffmpeg ffmpeg-devel
+        else
+            sudo npm install ffbinaries
+        fi
     else
-        sudo npm install ffbinaries
+        sudo zypper install -y ffmpeg ffmpeg-devel
     fi
-fi
-echo "Shinobi - Do you want to Install Node.js?"
-echo "(y)es or (N)o"
-read nodejsinstall
-if [ "$nodejsinstall" = "y" ] || [ "$nodejsinstall" = "Y" ]; then
-    sudo wget https://rpm.nodesource.com/setup_8.x
-    sudo chmod +x setup_8.x
-    ./setup_8.x
-    sudo yum install nodejs -y
 fi
 echo "============="
 echo "Shinobi - Do you want to use MariaDB or SQLite3?"
@@ -66,7 +67,7 @@ echo "Press [ENTER] for default (MariaDB)"
 read sqliteormariadb
 if [ "$sqliteormariadb" = "S" ] || [ "$sqliteormariadb" = "s" ]; then
     sudo npm install jsonfile
-    sudo yum install -y sqlite sqlite-devel -y
+    sudo zypper install -y sqlite3 sqlite3-devel
     sudo npm install sqlite3
     node ./tools/modifyConfiguration.js databaseType=sqlite3
     if [ ! -e "./shinobi.sqlite" ]; then
@@ -81,7 +82,7 @@ else
     echo "(y)es or (N)o"
     read mysqlagree
     if [ "$mysqlagree" = "y" ] || [ "$mysqlagree" = "Y" ]; then
-        sudo yum install mariadb mariadb-server -y
+        sudo zypper install -y mariadb
         #Start mysql and enable on boot
         sudo systemctl start mariadb
         sudo systemctl enable mariadb
@@ -103,8 +104,8 @@ else
 fi
 echo "============="
 echo "Shinobi - Install NPM Libraries"
-sudo npm i npm -g
-sudo npm install --unsafe-perm
+npm i npm -g
+npm install --unsafe-perm
 sudo npm audit fix --force
 echo "============="
 echo "Shinobi - Install PM2"
@@ -149,7 +150,7 @@ if [ ! "$sqliteormariadb" = "M" ] && [ ! "$sqliteormariadb" = "m" ]; then
     echo "====================================="
     echo "|| Login with the Superuser and create a new user!!"
     echo "||==================================="
-    echo "|| Open http://$(ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'):8080/super in your web browser."
+    echo "|| Open http://$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1):8080/super in your web browser."
     echo "||==================================="
     echo "|| Default Superuser : admin@shinobi.video"
     echo "|| Default Password : admin"
@@ -158,6 +159,6 @@ if [ ! "$sqliteormariadb" = "M" ] && [ ! "$sqliteormariadb" = "m" ]; then
 else
     echo "+=================================+"
     echo "||=====   Install Completed   =====||"
-    echo "|| Access the main Shinobi panel at http://$(ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'):8080 in your web browser."
+    echo "|| Access the main Shinobi panel at http://$(/sbin/ip -o -4 addr list eth0 | awk '{print $4}' | cut -d/ -f1):8080 in your web browser."
     echo "+=================================+"
 fi
