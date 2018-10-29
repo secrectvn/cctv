@@ -408,4 +408,54 @@ module.exports = function(s,config,lang,app){
             close()
         },res,req)
     })
+    /**
+    * API : Superuser : Export Entire System
+    */
+    app.all(config.webPaths.superApiPrefix+':auth/export/system', function (req,res){
+        s.superAuth(req.params,function(resp){
+            var endData = {
+                ok : true
+            }
+            var close = function(){
+                res.end(s.prettyPrint(endData))
+            }
+            var account = s.getPostData(req,'account')
+            s.sqlQuery('SELECT FROM Users',[],function(err,users){
+                s.sqlQuery('SELECT FROM Monitors',[],function(err,monitors){
+                    s.sqlQuery('SELECT FROM API',[],function(err,monitors){
+                        s.sqlQuery('SELECT FROM Videos',[],function(err,monitors){
+                            s.sqlQuery('SELECT FROM Logs',[],function(err,monitors){
+                                
+                            })
+                        })
+                    })
+                })
+            })
+            s.sqlQuery('DELETE FROM API WHERE uid=? AND ke=?',[account.uid,account.ke])
+            if(s.getPostData(req,'deleteSubAccounts',false) === '1'){
+                s.sqlQuery('DELETE FROM Users WHERE ke=?',[account.ke])
+            }
+            if(s.getPostData(req,'deleteMonitors',false) == '1'){
+                s.sqlQuery('SELECT * FROM Monitors WHERE ke=?',[account.ke],function(err,monitors){
+                    if(monitors && monitors[0]){
+                        monitors.forEach(function(monitor){
+                            s.camera('stop',monitor)
+                        })
+                        s.sqlQuery('DELETE FROM Monitors WHERE ke=?',[account.ke])
+                    }
+                })
+            }
+            if(s.getPostData(req,'deleteVideos',false) == '1'){
+                s.sqlQuery('DELETE FROM Videos WHERE ke=?',[account.ke])
+                fs.chmod(s.dir.videos+account.ke,0o777,function(err){
+                    fs.unlink(s.dir.videos+account.ke,function(err){})
+                })
+            }
+            if(s.getPostData(req,'deleteEvents',false) == '1'){
+                s.sqlQuery('DELETE FROM Events WHERE ke=?',[account.ke])
+            }
+            s.tx({f:'delete_account',ke:account.ke,uid:account.uid,mail:account.mail},'$')
+            close()
+        },res,req)
+    })
 }
