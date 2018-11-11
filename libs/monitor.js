@@ -73,6 +73,16 @@ module.exports = function(s,config,lang){
         if(noPath !== true)url += e.path
         return url
     }
+    s.cleanMonitorObjectForDatabase = function(dirtyMonitor){
+        var cleanMonitor = {}
+        var acceptedFields = ['mid','ke','name','shto','shfr','details','type','ext','protocol','host','path','port','fps','mode','width','height']
+        Object.keys(dirtyMonitor).forEach(function(key){
+            if(acceptedFields.indexOf(key) > -1){
+                cleanMonitor[key] = dirtyMonitor[key]
+            }
+        })
+        return cleanMonitor
+    }
     s.cleanMonitorObject = function(e){
         x={keys:Object.keys(e),ar:{}};
         x.keys.forEach(function(v){
@@ -89,18 +99,28 @@ module.exports = function(s,config,lang){
         }
         var url
         var runExtraction = function(){
-            var snapBuffer = []
-            var snapProcess = spawn(config.ffmpegDir,('-loglevel quiet -re -i '+url+options+' -frames:v 1 -f mjpeg pipe:1').split(' '),{detached: true})
-            snapProcess.stdout.on('data',function(data){
-                snapBuffer.push(data)
-            });
-            snapProcess.stderr.on('data',function(data){
-                console.log(data.toString())
-            });
-            snapProcess.on('close',function(data){
-                snapBuffer = Buffer.concat(snapBuffer)
-                callback(snapBuffer,false)
-            })
+            try{
+                var snapBuffer = []
+                var snapProcess = spawn(config.ffmpegDir,('-loglevel quiet -re -i '+url+options+' -frames:v 1 -f image2pipe pipe:1').split(' '),{detached: true})
+                snapProcess.stdout.on('data',function(data){
+                    snapBuffer.push(data)
+                })
+                snapProcess.stderr.on('data',function(data){
+                    console.log(data.toString())
+                })
+                snapProcess.on('exit',function(data){
+                    clearTimeout(snapProcessTimeout)
+                    snapBuffer = Buffer.concat(snapBuffer)
+                    callback(snapBuffer,false)
+                })
+                var snapProcessTimeout = setTimeout(function(){
+                    snapProcess.stdin.setEncoding('utf8')
+                    snapProcess.stdin.write('q')
+                    delete(snapProcessTimeout)
+                },5000)
+            }catch(err){
+                callback(fs.readFileSync(config.defaultMjpeg,'binary'),false)
+            }
         }
         var checkExists = function(localStream,callback){
             fs.stat(localStream,function(err){
@@ -230,6 +250,7 @@ module.exports = function(s,config,lang){
             clearTimeout(s.group[e.ke].mon[e.id].watchdog_stop);
             delete(s.group[e.ke].mon[e.id].watchdog_stop);
             delete(s.group[e.ke].mon[e.id].lastJpegDetectorFrame);
+            delete(s.group[e.ke].mon[e.id].detectorFrameSaveBuffer);
             clearTimeout(s.group[e.ke].mon[e.id].recordingSnapper);
             clearInterval(s.group[e.ke].mon[e.id].getMonitorCpuUsage);
             if(s.group[e.ke].mon[e.id].onChildNodeExit){
@@ -377,7 +398,7 @@ module.exports = function(s,config,lang){
                     }
                 }
                 //create onvif connection
-                if(!s.group[e.ke].mon[e.id].onvifConnection){
+                if(!s.group[e.ke].mon[e.id].onvifConnection || !s.group[e.ke].mon[e.id].onvifConnection.current_profile || !s.group[e.ke].mon[e.id].onvifConnection.current_profile.token){
                     s.group[e.ke].mon[e.id].onvifConnection = new onvif.OnvifDevice({
                         xaddr : 'http://' + controlURLOptions.host + ':' + controlURLOptions.port + '/onvif/device_service',
                         user : controlURLOptions.username,
@@ -494,8 +515,8 @@ module.exports = function(s,config,lang){
     }
     s.cameraSendSnapshot = function(e){
         s.checkDetails(e)
-        if(config.doSnapshot===true){
-            if(e.mon.mode!=='stop'){
+        if(config.doSnapshot === true){
+            if(e.mon.mode !== 'stop'){
                 var pathDir = s.dir.streams+e.ke+'/'+e.mid+'/'
                 fs.stat(pathDir+'icon.jpg',function(err){
                     if(!err){
@@ -505,36 +526,22 @@ module.exports = function(s,config,lang){
                         })
                     }else{
                         e.url = s.buildMonitorUrl(e.mon)
-                        switch(e.mon.type){
-                            case'mjpeg':case'h264':case'local':
-                                if(e.mon.type==='local'){e.url=e.mon.path;}
-                                 s.getRawSnapshotFromMonitor(e.mon,'-s 200x200',function(data,isStaticFile){
-                                     if((data[data.length-2] === 0xFF && data[data.length-1] === 0xD9)){
-                                         if(!isStaticFile){
-                                             fs.writeFile(s.dir.streams+e.ke+'/'+e.mid+'/icon.jpg',data,function(){})
-                                         }
-                                         s.tx({
-                                             f:'monitor_snapshot',
-                                             snapshot:data.toString('base64'),
-                                             snapshot_format:'b64',
-                                             mid:e.mid,
-                                             ke:e.ke
-                                         },'GRP_'+e.ke)
-                                     }else{
-                                         s.tx({f:'monitor_snapshot',snapshot:e.mon.name,snapshot_format:'plc',mid:e.mid,ke:e.ke},'GRP_'+e.ke)
-                                    }
-                                 })
-                            break;
-                            case'jpeg':
-                                request({url:e.url,method:'GET',encoding:null},function(err,data){
-                                    if(err){s.tx({f:'monitor_snapshot',snapshot:e.mon.name,snapshot_format:'plc',mid:e.mid,ke:e.ke},'GRP_'+e.ke);return};
-                                    s.tx({f:'monitor_snapshot',snapshot:data.body,snapshot_format:'ab',mid:e.mid,ke:e.ke},'GRP_'+e.ke)
-                                })
-                            break;
-                            default:
-                                s.tx({f:'monitor_snapshot',snapshot:'...',snapshot_format:'plc',mid:e.mid,ke:e.ke},'GRP_'+e.ke)
-                            break;
-                        }
+                        s.getRawSnapshotFromMonitor(e.mon,'-s 200x200',function(data,isStaticFile){
+                            if((data[data.length-2] === 0xFF && data[data.length-1] === 0xD9)){
+                                if(!isStaticFile){
+                                    fs.writeFile(s.dir.streams+e.ke+'/'+e.mid+'/icon.jpg',data,function(){})
+                                }
+                                s.tx({
+                                    f: 'monitor_snapshot',
+                                    snapshot: data.toString('base64'),
+                                    snapshot_format: 'b64',
+                                    mid: e.mid,
+                                    ke: e.ke
+                                },'GRP_'+e.ke)
+                            }else{
+                                s.tx({f:'monitor_snapshot',snapshot:e.mon.name,snapshot_format:'plc',mid:e.mid,ke:e.ke},'GRP_'+e.ke)
+                           }
+                        })
                     }
                 })
             }else{
@@ -777,10 +784,34 @@ module.exports = function(s,config,lang){
                         s.group[e.ke].mon[e.id].lastJpegDetectorFrame = d
                     })
                 }
-            }else{
-                s.group[e.ke].mon[e.id].spawn.stdio[3].on('data',function(d){
-                    s.ocvTx({f:'frame',mon:s.group[e.ke].mon_conf[e.id].details,ke:e.ke,id:e.id,time:s.formattedTime(),frame:d});
-                })
+            }else if(s.ocv){
+                if(s.ocv.connectionType !== 'ram'){
+                    s.group[e.ke].mon[e.id].spawn.stdio[3].on('data',function(d){
+                        s.ocvTx({f:'frame',mon:s.group[e.ke].mon_conf[e.id].details,ke:e.ke,id:e.id,time:s.formattedTime(),frame:d});
+                    })
+                }else{
+                    s.group[e.ke].mon[e.id].spawn.stdio[3].on('data',function(d){
+                        if(!s.group[e.ke].mon[e.id].detectorFrameSaveBuffer){
+                            s.group[e.ke].mon[e.id].detectorFrameSaveBuffer=[d]
+                        }else{
+                            s.group[e.ke].mon[e.id].detectorFrameSaveBuffer.push(d)
+                        }
+                        if(d[d.length-2] === 0xFF && d[d.length-1] === 0xD9){
+                            var buffer = Buffer.concat(s.group[e.ke].mon[e.id].detectorFrameSaveBuffer);
+                            var frameLocation = s.dir.streams + e.ke + '/' + e.id + '/' + s.gid(5) + '.jpg'
+                            if(s.ocv){
+                                fs.writeFile(frameLocation,buffer,function(err){
+                                    if(err){
+                                        s.debugLog(err)
+                                    }else{
+                                        s.ocvTx({f:'frameFromRam',mon:s.group[e.ke].mon_conf[e.id].details,ke:e.ke,id:e.id,time:s.formattedTime(),frameLocation:frameLocation})
+                                    }
+                                })
+                            }
+                            s.group[e.ke].mon[e.id].detectorFrameSaveBuffer = null;
+                        }
+                    })
+                }
             }
         }
         //frames to stream
@@ -1191,6 +1222,92 @@ module.exports = function(s,config,lang){
             }
         }catch(err){}
         return false
+    }
+    s.addOrEditMonitor = function(form,callback,user){
+        var endData = {
+            ok: false
+        }
+        if(!form.mid){
+            endData.msg = lang['No Monitor ID Present in Form']
+            callback(endData)
+            return
+        }
+        form.mid = form.mid.replace(/[^\w\s]/gi,'').replace(/ /g,'')
+        form = s.cleanMonitorObjectForDatabase(form)
+        s.sqlQuery('SELECT * FROM Monitors WHERE ke=? AND mid=?',[form.ke,form.mid],function(er,r){
+            var affectMonitor = false
+            var monitorQuery = []
+            var monitorQueryValues = []
+            var txData = {
+                f: 'monitor_edit',
+                mid: form.mid,
+                ke: form.ke,
+                mon: form
+            }
+            if(r&&r[0]){
+                txData.new = false
+                Object.keys(form).forEach(function(v){
+                    if(form[v]&&form[v]!==''){
+                        monitorQuery.push(v+'=?')
+                        if(form[v] instanceof Object){
+                            form[v] = s.s(form[v])
+                        }
+                        monitorQueryValues.push(form[v])
+                    }
+                })
+                monitorQuery = monitorQuery.join(',')
+                monitorQueryValues.push(form.ke)
+                monitorQueryValues.push(form.mid)
+                s.userLog(form,{type:'Monitor Updated',msg:'by user : '+user.uid})
+                endData.msg = user.lang['Monitor Updated by user']+' : '+user.uid
+                s.sqlQuery('UPDATE Monitors SET '+monitorQuery+' WHERE ke=? AND mid=?',monitorQueryValues)
+                affectMonitor = true
+            }else if(
+                !s.group[form.ke].init.max_camera ||
+                s.group[form.ke].init.max_camera === '' ||
+                Object.keys(s.group[form.ke].mon).length <= parseInt(s.group[form.ke].init.max_camera)
+            ){
+                txData.new = true
+                monitorQueryInsertValues = []
+                Object.keys(form).forEach(function(v){
+                    if(form[v] && form[v] !== ''){
+                        monitorQuery.push(v)
+                        monitorQueryInsertValues.push('?')
+                        if(form[v] instanceof Object){
+                            form[v] = s.s(form[v])
+                        }
+                        monitorQueryValues.push(form[v])
+                    }
+                })
+                monitorQuery = monitorQuery.join(',')
+                monitorQueryInsertValues = monitorQueryInsertValues.join(',')
+                s.userLog(form,{type:'Monitor Added',msg:'by user : '+user.uid})
+                endData.msg = user.lang['Monitor Added by user']+' : '+user.uid
+                s.sqlQuery('INSERT INTO Monitors ('+monitorQuery+') VALUES ('+monitorQueryInsertValues+')',monitorQueryValues)
+                affectMonitor = true
+            }else{
+                txData.f = 'monitor_edit_failed'
+                txData.ff = 'max_reached'
+                endData.msg = user.lang.monitorEditFailedMaxReached
+            }
+            if(affectMonitor === true){
+                form.details = JSON.parse(form.details)
+                endData.ok = true
+                s.initiateMonitorObject({mid:form.mid,ke:form.ke})
+                s.group[form.ke].mon_conf[form.mid] = s.cleanMonitorObject(form)
+                if(form.mode === 'stop'){
+                    s.camera('stop',form)
+                }else{
+                    s.camera('stop',form)
+                    setTimeout(function(){
+                        s.camera(form.mode,form)
+                    },5000)
+                }
+                s.tx(txData,'STR_'+form.ke)
+            }
+            s.tx(txData,'GRP_'+form.ke)
+            callback(!endData.ok,endData)
+        })
     }
     s.camera = function(x,e,cn){
         // x = function or mode

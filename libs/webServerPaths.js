@@ -11,54 +11,15 @@ var httpProxy = require('http-proxy');
 var proxy = httpProxy.createProxyServer({})
 var ejs = require('ejs');
 var CircularJSON = require('circular-json');
-module.exports = function(s,config,lang,app){
+module.exports = function(s,config,lang,app,io){
     if(config.productType==='Pro'){
         var LdapAuth = require('ldapauth-fork');
     }
-    //get page URL
-    if(!config.baseURL){
-        config.baseURL = ""
-    }else if(config.baseURL !== ''){
-        config.baseURL = s.checkCorrectPathEnding(config.baseURL)
+    s.renderPage = function(req,res,paths,passables,callback){
+        passables.window = {}
+        passables.originalURL = s.getOriginalUrl(req)
+        res.render(paths,passables,callback)
     }
-    //Render Configurations - Web Paths
-    if(config.webPaths === undefined){config.webPaths={}}
-        //main access URI
-        if(config.webPaths.home === undefined){config.webPaths.home='/'}
-        //Super User URI
-        if(config.webPaths.super === undefined){config.webPaths.super='/super'}
-        //Admin URI
-        if(config.webPaths.admin === undefined){config.webPaths.admin='/admin'}
-        //API Prefix
-        if(config.webPaths.apiPrefix === undefined){config.webPaths.apiPrefix='/'}else{config.webPaths.apiPrefix = s.checkCorrectPathEnding(config.webPaths.apiPrefix)}
-        //Admin API Prefix
-        if(config.webPaths.adminApiPrefix === undefined){config.webPaths.adminApiPrefix='/admin/'}else{config.webPaths.adminApiPrefix = s.checkCorrectPathEnding(config.webPaths.adminApiPrefix)}
-        //Super API Prefix
-        if(config.webPaths.superApiPrefix === undefined){config.webPaths.superApiPrefix='/super/'}else{config.webPaths.superApiPrefix = s.checkCorrectPathEnding(config.webPaths.superApiPrefix)}
-    //Render Configurations - Page Render Paths
-    if(config.renderPaths === undefined){config.renderPaths={}}
-        //login page
-        if(config.renderPaths.index === undefined){config.renderPaths.index='pages/index'}
-        //dashboard page
-        if(config.renderPaths.home === undefined){config.renderPaths.home='pages/home'}
-        //sub-account administration page
-        if(config.renderPaths.admin === undefined){config.renderPaths.admin='pages/admin'}
-        //superuser page
-        if(config.renderPaths.super === undefined){config.renderPaths.super='pages/super'}
-        //2-Factor Auth page
-        if(config.renderPaths.factorAuth === undefined){config.renderPaths.factorAuth='pages/factor'}
-        //Streamer v1 (Dashcam Prototype) page
-        if(config.renderPaths.streamer === undefined){config.renderPaths.streamer='pages/streamer'}
-        //Streamer v2 (Dashcam) page
-        if(config.renderPaths.dashcam === undefined){config.renderPaths.dashcam='pages/dashcam'}
-        //embeddable widget page
-        if(config.renderPaths.embed === undefined){config.renderPaths.embed='pages/embed'}
-        //mjpeg full screen page
-        if(config.renderPaths.mjpeg === undefined){config.renderPaths.mjpeg='pages/mjpeg'}
-        //gridstack only page
-        if(config.renderPaths.grid === undefined){config.renderPaths.grid='pages/grid'}
-        //slick.js (cycle) page
-        if(config.renderPaths.cycle === undefined){config.renderPaths.cycle='pages/cycle'}
     //child node proxy check
     //params = parameters
     //cb = callback
@@ -71,6 +32,10 @@ module.exports = function(s,config,lang,app){
         }else{
             cb()
         }
+    }
+    s.closeJsonResponse = function(res,endData){
+        res.setHeader('Content-Type', 'application/json')
+        res.end(s.prettyPrint(endData))
     }
     //get post data
     s.getPostData = function(req,target,parseJSON){
@@ -93,13 +58,18 @@ module.exports = function(s,config,lang,app){
     }
     ////Pages
     app.enable('trust proxy');
-    app.use('/libs',express.static(s.mainDirectory + '/web/libs'));
+    if(config.webPaths.home !== '/'){
+        app.use('/libs',express.static(s.mainDirectory + '/web/libs'))
+    }
+    app.use(s.checkCorrectPathEnding(config.webPaths.home)+'libs',express.static(s.mainDirectory + '/web/libs'))
+    app.use(s.checkCorrectPathEnding(config.webPaths.admin)+'libs',express.static(s.mainDirectory + '/web/libs'))
+    app.use(s.checkCorrectPathEnding(config.webPaths.super)+'libs',express.static(s.mainDirectory + '/web/libs'))
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({extended: true}));
     app.set('views', s.mainDirectory + '/web');
     app.set('view engine','ejs');
     //add template handler
-    if(config.renderPaths.handler!==undefined){require(s.mainDirectory+'/web/'+config.renderPaths.handler+'.js').addHandlers(s,app,io)}
+    if(config.renderPaths.handler!==undefined){require(s.mainDirectory+'/web/'+config.renderPaths.handler+'.js').addHandlers(s,app,io,config)}
 
     /**
     * API : Logout
@@ -118,7 +88,7 @@ module.exports = function(s,config,lang,app){
     * Page : Login Screen
     */
     app.get(config.webPaths.home, function (req,res){
-        res.render(config.renderPaths.index,{lang:lang,config:config,screen:'dashboard',originalURL:s.getOriginalUrl(req)},function(err,html){
+        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config:config,screen:'dashboard'},function(err,html){
             if(err){
                 s.systemLog(err)
             }
@@ -129,7 +99,7 @@ module.exports = function(s,config,lang,app){
     * Page : Administrator Login Screen
     */
     app.get(config.webPaths.admin, function (req,res){
-        res.render(config.renderPaths.index,{lang:lang,config:config,screen:'admin',originalURL:s.getOriginalUrl(req)},function(err,html){
+        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config:config,screen:'admin'},function(err,html){
             if(err){
                 s.systemLog(err)
             }
@@ -141,7 +111,7 @@ module.exports = function(s,config,lang,app){
     */
     app.get(config.webPaths.super, function (req,res){
 
-        res.render(config.renderPaths.index,{lang:lang,config:config,screen:'super',originalURL:s.getOriginalUrl(req)},function(err,html){
+        s.renderPage(req,res,config.renderPaths.index,{lang:lang,config:config,screen:'super'},function(err,html){
             if(err){
                 s.systemLog(err)
             }
@@ -171,23 +141,48 @@ module.exports = function(s,config,lang,app){
     /**
     * API : Login handler. Dashboard, Streamer, Dashcam Administrator, Superuser
     */
-    app.post([config.webPaths.home,s.checkCorrectPathEnding(config.webPaths.home)+':screen'],function (req,res){
+    app.post([
+        config.webPaths.home,
+        config.webPaths.admin,
+        config.webPaths.super,
+        s.checkCorrectPathEnding(config.webPaths.home)+':screen',
+        s.checkCorrectPathEnding(config.webPaths.admin)+':screen',
+        s.checkCorrectPathEnding(config.webPaths.super)+':screen',
+    ],function (req,res){
         req.ip = s.getClientIp(req)
         if(req.query.json === 'true'){
             res.header("Access-Control-Allow-Origin",req.headers.origin);
+        }
+        var screenChooser = function(screen){
+            var search = function(screen){
+                if(req.url.indexOf(screen) > -1){
+                    return true
+                }
+                return false
+            }
+            switch(true){
+                case search(config.webPaths.admin):
+                    return 'admin'
+                break;
+                case search(config.webPaths.super):
+                    return 'super'
+                break;
+                default:
+                    return 'dashboard'
+                break;
+            }
         }
         // brute check
         if(s.failedLoginAttempts[req.body.mail] && s.failedLoginAttempts[req.body.mail].failCount >= 5){
             if(req.query.json=='true'){
                 res.end(s.prettyPrint({ok:false}))
             }else{
-                res.render(config.renderPaths.index,{
-                    failedLogin:true,
-                    message:lang.failedLoginText1,
-                    lang:lang,
-                    config:config,
-                    screen:req.params.screen,
-                    originalURL:s.getOriginalUrl(req)
+                s.renderPage(req,res,config.renderPaths.index,{
+                    failedLogin: true,
+                    message: lang.failedLoginText1,
+                    lang: lang,
+                    config: config,
+                    screen: screenChooser(req.params.screen)
                 },function(err,html){
                     if(err){
                         s.systemLog(err)
@@ -209,9 +204,8 @@ module.exports = function(s,config,lang,app){
                 res.setHeader('Content-Type', 'application/json');
                 res.end(s.prettyPrint(data))
             }else{
-                data.originalURL = s.getOriginalUrl(req)
                 data.screen=req.params.screen
-                res.render(focus,data,function(err,html){
+                s.renderPage(req,res,focus,data,function(err,html){
                     if(err){
                         s.systemLog(err)
                     }
@@ -241,13 +235,12 @@ module.exports = function(s,config,lang,app){
                 res.setHeader('Content-Type', 'application/json')
                 res.end(s.prettyPrint({ok:false}))
             }else{
-                res.render(config.renderPaths.index,{
-                    failedLogin:true,
-                    message:lang.failedLoginText2,
-                    lang:lang,
-                    config:config,
-                    screen:req.params.screen,
-                    originalURL:s.getOriginalUrl(req)
+                s.renderPage(req,res,config.renderPaths.index,{
+                    failedLogin: true,
+                    message: lang.failedLoginText2,
+                    lang: lang,
+                    config: config,
+                    screen: screenChooser(req.params.screen)
                 },function(err,html){
                     if(err){
                         s.systemLog(err)
@@ -344,7 +337,7 @@ module.exports = function(s,config,lang,app){
                         r.details=JSON.parse(r.details);
                         r.lang=s.getLanguageFile(r.details.lang)
                         req.factorAuth=function(cb){
-                            if(r.details.factorAuth==="1"){
+                            if(r.details.factorAuth === "1"){
                                 if(!r.details.acceptedMachines||!(r.details.acceptedMachines instanceof Object)){
                                     r.details.acceptedMachines={}
                                 }
@@ -671,14 +664,13 @@ module.exports = function(s,config,lang,app){
                 if(req.path.indexOf('/cycle/') > -1){
                     page = config.renderPaths.cycle
                 }
-                res.render(page,{
+                s.renderPage(req,res,page,{
                     data:Object.assign(req.params,req.query),
                     baseUrl:req.protocol+'://'+req.hostname,
                     config:config,
                     lang:user.lang,
                     $user:user,
                     monitors:r,
-                    originalURL:s.getOriginalUrl(req),
                     query:req.query
                 });
             })
@@ -1490,17 +1482,22 @@ module.exports = function(s,config,lang,app){
                         req.ext=req.params.file.split('.')[1];
                         var total = fs.statSync(req.dir).size;
                         if (req.headers['range']) {
-                            var range = req.headers.range;
-                            var parts = range.replace(/bytes=/, "").split("-");
-                            var partialstart = parts[0];
-                            var partialend = parts[1];
-
-                            var start = parseInt(partialstart, 10);
-                            var end = partialend ? parseInt(partialend, 10) : total-1;
-                            var chunksize = (end-start)+1;
-                            var file = fs.createReadStream(req.dir, {start: start, end: end});
-                            req.headerWrite={ 'Content-Range': 'bytes ' + start + '-' + end + '/' + total, 'Accept-Ranges': 'bytes', 'Content-Length': chunksize, 'Content-Type': 'video/'+req.ext }
-                            req.writeCode=206
+                            try{
+                                var range = req.headers.range;
+                                var parts = range.replace(/bytes=/, "").split("-");
+                                var partialstart = parts[0];
+                                var partialend = parts[1];
+                                var start = parseInt(partialstart, 10);
+                                var end = partialend ? parseInt(partialend, 10) : total-1;
+                                var chunksize = (end-start)+1;
+                                var file = fs.createReadStream(req.dir, {start: start, end: end});
+                                req.headerWrite={ 'Content-Range': 'bytes ' + start + '-' + end + '/' + total, 'Accept-Ranges': 'bytes', 'Content-Length': chunksize, 'Content-Type': 'video/'+req.ext }
+                                req.writeCode=206
+                            }catch(err){
+                                req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+req.ext};
+                                var file = fs.createReadStream(req.dir)
+                                req.writeCode=200
+                            }
                         } else {
                             req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+req.ext};
                             var file=fs.createReadStream(req.dir)
@@ -1843,5 +1840,28 @@ module.exports = function(s,config,lang,app){
                 doAction(s.group[req.params.ke].mon[req.params.id].onvifConnection)
             }
         },res,req);
+    })
+    /**
+    * API : Account Edit from Dashboard
+     */
+    app.all(config.webPaths.apiPrefix+':auth/accounts/:ke/edit',function (req,res){
+        s.auth(req.params,function(user){
+            var endData = {
+                ok : false
+            }
+            var form = s.getPostData(req)
+            if(form){
+                endData.ok = true
+                s.accountSettingsEdit({
+                    ke: req.params.ke,
+                    uid: user.uid,
+                    form: form,
+                    cnid: user.cnid
+                })
+            }else{
+                endData.msg = lang.postDataBroken
+            }
+            s.closeJsonResponse(res,endData)
+        },res,req)
     })
 }
