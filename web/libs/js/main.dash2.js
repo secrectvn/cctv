@@ -4710,7 +4710,7 @@ $.timelapse.f.submit(function(e){
 $.timelapse.drawTimeline=function(getData){
     var e={};
     if(getData===undefined){getData=true}
-    var mid=$.timelapse.monitors.val();
+    var mid = $.timelapse.monitors.val()
     e.dateRange=$.timelapse.dr.data('daterangepicker');
     e.dateRange={startDate:e.dateRange.startDate,endDate:e.dateRange.endDate}
     e.videoURL=$.ccio.init('location',$user)+$user.auth_token+'/videos/'+$user.ke+'/'+mid;
