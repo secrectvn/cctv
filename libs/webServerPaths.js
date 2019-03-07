@@ -8,6 +8,7 @@ var execSync = require('child_process').execSync;
 var exec = require('child_process').exec;
 var spawn = require('child_process').spawn;
 var httpProxy = require('http-proxy');
+var onvif = require('node-onvif');
 var proxy = httpProxy.createProxyServer({})
 var ejs = require('ejs');
 var CircularJSON = require('circular-json');
@@ -67,6 +68,10 @@ module.exports = function(s,config,lang,app,io){
     app.use(s.checkCorrectPathEnding(config.webPaths.super)+'libs',express.static(s.mainDirectory + '/web/libs'))
     app.use(bodyParser.json());
     app.use(bodyParser.urlencoded({extended: true}));
+    app.use(function (req,res,next){
+        res.header("Access-Control-Allow-Origin",req.headers.origin);
+        next()
+    })
     app.set('views', s.mainDirectory + '/web');
     app.set('view engine','ejs');
     //add template handler
@@ -125,7 +130,6 @@ module.exports = function(s,config,lang,app,io){
     app.get(config.webPaths.apiPrefix+':auth/userInfo/:ke',function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             req.ret.ok=true
             req.ret.user=user
@@ -151,9 +155,6 @@ module.exports = function(s,config,lang,app,io){
         s.checkCorrectPathEnding(config.webPaths.super)+':screen',
     ],function (req,res){
         req.ip = s.getClientIp(req)
-        if(req.query.json === 'true'){
-            res.header("Access-Control-Allow-Origin",req.headers.origin);
-        }
         var screenChooser = function(screen){
             var search = function(screen){
                 if(req.url.indexOf(screen) > -1){
@@ -181,7 +182,7 @@ module.exports = function(s,config,lang,app,io){
                 s.renderPage(req,res,config.renderPaths.index,{
                     failedLogin: true,
                     message: lang.failedLoginText1,
-                    lang: lang,
+                    lang: s.copySystemDefaultLanguage(),
                     config: config,
                     screen: screenChooser(req.params.screen)
                 },function(err,html){
@@ -239,7 +240,7 @@ module.exports = function(s,config,lang,app,io){
                 s.renderPage(req,res,config.renderPaths.index,{
                     failedLogin: true,
                     message: lang.failedLoginText2,
-                    lang: lang,
+                    lang: s.copySystemDefaultLanguage(),
                     config: config,
                     screen: screenChooser(req.params.screen)
                 },function(err,html){
@@ -286,7 +287,8 @@ module.exports = function(s,config,lang,app,io){
                             // config: config,
                             $user: req.resp,
                             lang: r.lang,
-                            define: s.getDefinitonFile(r.details.lang)
+                            define: s.getDefinitonFile(r.details.lang),
+                            customAutoLoad: s.customAutoLoadTree
                         })
                     })
                 break;
@@ -297,7 +299,8 @@ module.exports = function(s,config,lang,app,io){
                             // config: config,
                             $user: req.resp,
                             lang: r.lang,
-                            define: s.getDefinitonFile(r.details.lang)
+                            define: s.getDefinitonFile(r.details.lang),
+                            customAutoLoad: s.customAutoLoadTree
                         })
                     })
                 break;
@@ -311,17 +314,36 @@ module.exports = function(s,config,lang,app,io){
                                     $subs: rr,
                                     $mons: rrr,
                                     lang: r.lang,
-                                    define: s.getDefinitonFile(r.details.lang)
+                                    define: s.getDefinitonFile(r.details.lang),
+                                    customAutoLoad: s.customAutoLoadTree
                                 })
                             })
                         })
                     }else{
                         //not admin user
-                        renderPage(config.renderPaths.home,{$user:req.resp,config:config,lang:r.lang,define:s.getDefinitonFile(r.details.lang),addStorage:s.dir.addStorage,fs:fs,__dirname:s.mainDirectory});
+                        renderPage(config.renderPaths.home,{
+                            $user:req.resp,
+                            config:config,
+                            lang:r.lang,
+                            define:s.getDefinitonFile(r.details.lang),
+                            addStorage:s.dir.addStorage,
+                            fs:fs,
+                            __dirname:s.mainDirectory,
+                            customAutoLoad: s.customAutoLoadTree
+                        });
                     }
                 break;
                 default:
-                    renderPage(config.renderPaths.home,{$user:req.resp,config:config,lang:r.lang,define:s.getDefinitonFile(r.details.lang),addStorage:s.dir.addStorage,fs:fs,__dirname:s.mainDirectory});
+                    renderPage(config.renderPaths.home,{
+                        $user:req.resp,
+                        config:config,
+                        lang:r.lang,
+                        define:s.getDefinitonFile(r.details.lang),
+                        addStorage:s.dir.addStorage,
+                        fs:fs,
+                        __dirname:s.mainDirectory,
+                        customAutoLoad: s.customAutoLoadTree
+                    });
                 break;
             }
             s.userLog({ke:r.ke,mid:'$USER'},{type:r.lang['New Authentication Token'],msg:{for:req.body.function,mail:r.mail,id:r.uid,ip:req.ip}})
@@ -511,6 +533,7 @@ module.exports = function(s,config,lang,app,io){
                                 r=[]
                             }
                             data.Logs = r
+                            data.customAutoLoad = s.customAutoLoadTree
                             fs.readFile(s.location.config,'utf8',function(err,file){
                                 data.plainConfig = JSON.parse(file)
                                 renderPage(config.renderPaths.super,data)
@@ -558,7 +581,6 @@ module.exports = function(s,config,lang,app,io){
     * API : Brute Protection Lock Reset by API
     */
     app.get([config.webPaths.apiPrefix+':auth/resetBruteProtection/:ke'], function (req,res){
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             if(s.failedLoginAttempts[user.mail]){
                 clearTimeout(s.failedLoginAttempts[user.mail].timeout)
@@ -576,7 +598,6 @@ module.exports = function(s,config,lang,app,io){
         config.webPaths.apiPrefix+':auth/cycle/:ke',
         config.webPaths.apiPrefix+':auth/cycle/:ke/:group'
     ], function(req,res) {
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             if(user.permissions.get_monitors==="0"){
                 res.end(user.lang['Not Permitted'])
@@ -705,7 +726,6 @@ module.exports = function(s,config,lang,app,io){
         }else{
             res.setHeader('Content-Type', 'application/json');
         }
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         req.fn=function(user){
             if(user.permissions.get_monitors==="0"){
                 res.end(s.prettyPrint([]))
@@ -821,7 +841,6 @@ module.exports = function(s,config,lang,app,io){
     app.get([config.webPaths.apiPrefix+':auth/monitor/:ke',config.webPaths.apiPrefix+':auth/monitor/:ke/:id'], function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         req.fn=function(user){
         if(user.permissions.get_monitors==="0"){
             res.end(s.prettyPrint([]))
@@ -903,6 +922,54 @@ module.exports = function(s,config,lang,app,io){
         s.auth(req.params,req.fn,res,req);
     });
     /**
+    * API : Merge Recorded Videos into one file
+     */
+     app.get(config.webPaths.apiPrefix+':auth/videosMerge/:ke', function (req,res){
+         var failed = function(resp){
+             res.setHeader('Content-Type', 'application/json');
+             res.end(s.prettyPrint(resp))
+         }
+         if(req.query.videos && req.query.videos !== ''){
+             s.auth(req.params,function(user){
+                 var videosSelected = JSON.parse(req.query.videos)
+                 var where = []
+                 var values = []
+                 videosSelected.forEach(function(video){
+                     where.push("(ke=? AND mid=? AND `time`=?)")
+                     if(!video.ke)video.ke = req.params.ke
+                     values.push(video.ke)
+                     values.push(video.mid)
+                     var time = s.nameToTime(video.filename)
+                     if(req.query.isUTC === 'true'){
+                         time = s.utcToLocal(time)
+                     }
+                     time = new Date(time)
+                     values.push(time)
+                 })
+                 s.sqlQuery('SELECT * FROM Videos WHERE '+where.join(' OR '),values,function(err,r){
+                     var resp = {ok: false}
+                     if(r && r[0]){
+                         s.mergeRecordedVideos(r,req.params.ke,function(fullPath,filename){
+                             res.setHeader('Content-Disposition', 'attachment; filename="'+filename+'"')
+                             var file = fs.createReadStream(fullPath)
+                             file.on('close',function(){
+                                 setTimeout(function(){
+                                     s.file('delete',fullPath)
+                                 },1000 * 60 * 3)
+                                 res.end()
+                             })
+                             file.pipe(res)
+                         })
+                     }else{
+                         failed({ok:false,msg:'No Videos Found'})
+                     }
+                 })
+             },res,req);
+         }else{
+             failed({ok:false,msg:'"videos" query variable is missing from request.'})
+         }
+    })
+    /**
     * API : Get Videos
      */
     app.get([
@@ -912,7 +979,6 @@ module.exports = function(s,config,lang,app,io){
         config.webPaths.apiPrefix+':auth/cloudVideos/:ke/:id'
     ], function (req,res){
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             var hasRestrictions = user.details.sub && user.details.allmonitors !== '1'
             if(
@@ -1033,7 +1099,6 @@ module.exports = function(s,config,lang,app,io){
     app.get([config.webPaths.apiPrefix+':auth/events/:ke',config.webPaths.apiPrefix+':auth/events/:ke/:id',config.webPaths.apiPrefix+':auth/events/:ke/:id/:limit',config.webPaths.apiPrefix+':auth/events/:ke/:id/:limit/:start',config.webPaths.apiPrefix+':auth/events/:ke/:id/:limit/:start/:end'], function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             if(user.permissions.watch_videos==="0"||user.details.sub&&user.details.allmonitors!=='1'&&user.details.video_view.indexOf(req.params.id)===-1){
                 res.end(s.prettyPrint([]))
@@ -1091,7 +1156,6 @@ module.exports = function(s,config,lang,app,io){
     app.get([config.webPaths.apiPrefix+':auth/logs/:ke',config.webPaths.apiPrefix+':auth/logs/:ke/:id'], function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             if(user.permissions.get_logs==="0" || user.details.sub && user.details.view_logs !== '1'){
                 res.end(s.prettyPrint([]))
@@ -1156,7 +1220,6 @@ module.exports = function(s,config,lang,app,io){
     app.get(config.webPaths.apiPrefix+':auth/smonitor/:ke', function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         req.fn=function(user){
             if(user.permissions.get_monitors==="0"){
                 res.end(s.prettyPrint([]))
@@ -1193,7 +1256,6 @@ module.exports = function(s,config,lang,app,io){
     app.get([config.webPaths.apiPrefix+':auth/monitor/:ke/:id/:f',config.webPaths.apiPrefix+':auth/monitor/:ke/:id/:f/:ff',config.webPaths.apiPrefix+':auth/monitor/:ke/:id/:f/:ff/:fff'], function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             if(user.permissions.control_monitors==="0"||user.details.sub&&user.details.allmonitors!=='1'&&user.details.monitor_edit.indexOf(req.params.id)===-1){
                 res.end(user.lang['Not Permitted'])
@@ -1288,7 +1350,6 @@ module.exports = function(s,config,lang,app,io){
      */
     app.get([config.webPaths.apiPrefix+':auth/fileBin/:ke',config.webPaths.apiPrefix+':auth/fileBin/:ke/:id'],function (req,res){
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         req.fn=function(user){
             req.sql='SELECT * FROM Files WHERE ke=?';req.ar=[req.params.ke];
             if(user.details.sub&&user.details.monitors&&user.details.allmonitors!=='1'){
@@ -1321,7 +1382,6 @@ module.exports = function(s,config,lang,app,io){
     * API : Get fileBin file
      */
     app.get(config.webPaths.apiPrefix+':auth/fileBin/:ke/:id/:year/:month/:day/:file', function (req,res){
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         req.fn=function(user){
             req.failed=function(){
                 res.end(user.lang['File Not Found'])
@@ -1352,7 +1412,6 @@ module.exports = function(s,config,lang,app,io){
     * API : Zip Videos and Get Link from fileBin
      */
     app.get(config.webPaths.apiPrefix+':auth/zipVideos/:ke', function (req,res){
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         var failed = function(resp){
             res.setHeader('Content-Type', 'application/json');
             res.end(s.prettyPrint(resp))
@@ -1375,7 +1434,7 @@ module.exports = function(s,config,lang,app,io){
                     values.push(time)
                 })
                 s.sqlQuery('SELECT * FROM Videos WHERE '+where.join(' OR '),values,function(err,r){
-                    var resp = {ok:false}
+                    var resp = {ok: false}
                     if(r && r[0]){
                         resp.ok = true
                         var zipDownload = null
@@ -1396,7 +1455,7 @@ module.exports = function(s,config,lang,app,io){
                             fs.mkdirSync(fileBinDir);
                         }
                         r.forEach(function(video){
-                            timeFormatted = s.formattedTime(video.time)
+                            var timeFormatted = s.formattedTime(video.time)
                             video.filename = timeFormatted+'.'+video.ext
                             var dir = s.getVideoDirectory(video)+video.filename
                             var tempVideoFile = timeFormatted+' - '+video.mid+'.'+video.ext
@@ -1418,16 +1477,27 @@ module.exports = function(s,config,lang,app,io){
                             var zipDownload = fs.createReadStream(zippedFile)
                             zipDownload.pipe(res)
                             zipDownload.on('error', function (error) {
-                                s.userLog({ke:req.params.ke,mid:'$USER'},{title:'Zip Download Error',msg:error.toString()})
+                                var errorString = error.toString()
+                                s.userLog({
+                                    ke: req.params.ke,
+                                    mid: '$USER'
+                                },{
+                                    title: 'Zip Download Error',
+                                    msg: errorString
+                                })
                                 if(zipDownload && zipDownload.destroy){
                                     zipDownload.destroy()
                                 }
-                            });
+                                res.end(s.prettyPrint({
+                                    ok: false,
+                                    msg: errorString
+                                }))
+                            })
                             zipDownload.on('close', function () {
                                 res.end()
-                                zipDownload.destroy();
-                                fs.unlinkSync(zippedFile);
-                            });
+                                zipDownload.destroy()
+                                fs.unlinkSync(zippedFile)
+                            })
                         })
                     }else{
                         failed({ok:false,msg:'No Videos Found'})
@@ -1437,7 +1507,120 @@ module.exports = function(s,config,lang,app,io){
         }else{
             failed({ok:false,msg:'"videos" query variable is missing from request.'})
         }
-    });
+    })
+    /**
+    * API : Zip Cloud Videos and Get Link from fileBin
+     */
+    app.get(config.webPaths.apiPrefix+':auth/zipCloudVideos/:ke', function (req,res){
+        var failed = function(resp){
+            res.setHeader('Content-Type', 'application/json');
+            res.end(s.prettyPrint(resp))
+        }
+        if(req.query.videos && req.query.videos !== ''){
+            s.auth(req.params,function(user){
+                var videosSelected = JSON.parse(req.query.videos)
+                var where = []
+                var values = []
+                videosSelected.forEach(function(video){
+                    where.push("(ke=? AND mid=? AND `time`=?)")
+                    if(!video.ke)video.ke = req.params.ke
+                    values.push(video.ke)
+                    values.push(video.mid)
+                    var time = s.nameToTime(video.filename)
+                    if(req.query.isUTC === 'true'){
+                        time = s.utcToLocal(time)
+                    }
+                    time = new Date(time)
+                    values.push(time)
+                })
+                s.sqlQuery('SELECT * FROM `Cloud Videos` WHERE '+where.join(' OR '),values,function(err,r){
+                    var resp = {ok: false}
+                    if(r && r[0]){
+                        resp.ok = true
+                        var zipDownload = null
+                        var tempFiles = []
+                        var fileId = s.gid()
+                        var fileBinDir = s.dir.fileBin+req.params.ke+'/'
+                        var tempScript = s.dir.streams+req.params.ke+'/'+fileId+'.sh'
+                        var zippedFilename = s.formattedTime()+'-'+fileId+'-Shinobi_Cloud_Backed_Recordings.zip'
+                        var zippedFile = fileBinDir+zippedFilename
+                        var script = 'cd '+fileBinDir+' && zip -9 -r '+zippedFile
+                        res.on('close', () => {
+                            if(zipDownload && zipDownload.destroy){
+                                zipDownload.destroy()
+                            }
+                            fs.unlink(zippedFile);
+                        })
+                        if(!fs.existsSync(fileBinDir)){
+                            fs.mkdirSync(fileBinDir);
+                        }
+                        var cloudDownloadCount = 0
+                        var getFile = function(video,completed){
+                            if(!video)completed();
+                            s.checkDetails(video)
+                            var filename = video.href.split('/')
+                            filename = filename[filename.length - 1]
+                            var timeFormatted = s.formattedTime(video.time)
+                            var tempVideoFile = video.details.type + '-' + video.mid + '-' + filename
+                            var tempFileWriteStream = fs.createWriteStream(fileBinDir+tempVideoFile)
+                            tempFileWriteStream.on('finish', function() {
+                                ++cloudDownloadCount
+                                getFile(r[cloudDownloadCount],completed)
+                            })
+                            var cloudVideoDownload = request(video.href)
+                            cloudVideoDownload.on('response',  function (res) {
+                                res.pipe(tempFileWriteStream)
+                            })
+                            tempFiles.push(fileBinDir+tempVideoFile)
+                            script += ' "'+tempVideoFile+'"'
+                        }
+                        getFile(r[cloudDownloadCount],function(){
+                            fs.writeFileSync(tempScript,script,'utf8')
+                            var zipCreate = spawn('sh',(tempScript).split(' '),{detached: true})
+                            zipCreate.stderr.on('data',function(data){
+                                s.userLog({ke:req.params.ke,mid:'$USER'},{title:'Zip Create Error',msg:data.toString()})
+                            })
+                            zipCreate.on('exit',function(data){
+                                fs.unlinkSync(tempScript)
+                                tempFiles.forEach(function(file){
+                                    fs.unlink(file,function(){})
+                                })
+                                res.setHeader('Content-Disposition', 'attachment; filename="' + zippedFilename + '"')
+                                var zipDownload = fs.createReadStream(zippedFile)
+                                zipDownload.pipe(res)
+                                zipDownload.on('error', function (error) {
+                                    var errorString = error.toString()
+                                    s.userLog({
+                                        ke: req.params.ke,
+                                        mid: '$USER'
+                                    },{
+                                        title: 'Zip Download Error',
+                                        msg: errorString
+                                    })
+                                    if(zipDownload && zipDownload.destroy){
+                                        zipDownload.destroy()
+                                    }
+                                    res.end(s.prettyPrint({
+                                        ok: false,
+                                        msg: errorString
+                                    }))
+                                })
+                                zipDownload.on('close', function () {
+                                    res.end()
+                                    zipDownload.destroy()
+                                    fs.unlinkSync(zippedFile)
+                                })
+                            })
+                        })
+                    }else{
+                        failed({ok:false,msg:'No Videos Found'})
+                    }
+                })
+            },res,req);
+        }else{
+            failed({ok:false,msg:'"videos" query variable is missing from request.'})
+        }
+    })
     /**
     * API : Get Cloud Video File (proxy)
      */
@@ -1480,38 +1663,7 @@ module.exports = function(s,config,lang,app,io){
                 if(r&&r[0]){
                     req.dir=s.getVideoDirectory(r[0])+req.params.file
                     if (fs.existsSync(req.dir)){
-                        req.ext=req.params.file.split('.')[1];
-                        var total = fs.statSync(req.dir).size;
-                        if (req.headers['range']) {
-                            try{
-                                var range = req.headers.range;
-                                var parts = range.replace(/bytes=/, "").split("-");
-                                var partialstart = parts[0];
-                                var partialend = parts[1];
-                                var start = parseInt(partialstart, 10);
-                                var end = partialend ? parseInt(partialend, 10) : total-1;
-                                var chunksize = (end-start)+1;
-                                var file = fs.createReadStream(req.dir, {start: start, end: end});
-                                req.headerWrite={ 'Content-Range': 'bytes ' + start + '-' + end + '/' + total, 'Accept-Ranges': 'bytes', 'Content-Length': chunksize, 'Content-Type': 'video/'+req.ext }
-                                req.writeCode=206
-                            }catch(err){
-                                req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+req.ext};
-                                var file = fs.createReadStream(req.dir)
-                                req.writeCode=200
-                            }
-                        } else {
-                            req.headerWrite={ 'Content-Length': total, 'Content-Type': 'video/'+req.ext};
-                            var file=fs.createReadStream(req.dir)
-                            req.writeCode=200
-                        }
-                        if(req.query.downloadName){
-                            req.headerWrite['content-disposition']='attachment; filename="'+req.query.downloadName+'"';
-                        }
-                        res.writeHead(req.writeCode,req.headerWrite);
-                        file.on('close',function(){
-                            res.end();
-                        })
-                        file.pipe(res);
+                        s.streamMp4FileOverHttp(req.dir,req,res)
                     }else{
                         res.end(user.lang['File Not Found in Filesystem'])
                     }
@@ -1524,27 +1676,34 @@ module.exports = function(s,config,lang,app,io){
     /**
     * API : Motion Trigger via GET request
      */
-    app.get(config.webPaths.apiPrefix+':auth/motion/:ke/:id', function (req,res){
-        s.auth(req.params,function(user){
-            if(req.query.data){
-                try{
-                    var d={id:req.params.id,ke:req.params.ke,details:JSON.parse(req.query.data)};
-                }catch(err){
-                    res.end('Data Broken',err);
-                    return;
-                }
-            }else{
-                res.end('No Data');
-                return;
-            }
-            if(!d.ke||!d.id||!s.group[d.ke]){
-                res.end(user.lang['No Group with this key exists']);
-                return;
-            }
-            s.triggerEvent(d)
-            res.end(user.lang['Trigger Successful'])
-        },res,req);
-    })
+     app.get(config.webPaths.apiPrefix+':auth/motion/:ke/:id', function (req,res){
+         s.auth(req.params,function(user){
+             var endData = {
+
+             }
+             if(req.query.data){
+                 try{
+                     var d = {
+                         id: req.params.id,
+                         ke: req.params.ke,
+                         details: JSON.parse(req.query.data)
+                     }
+                 }catch(err){
+                     res.end('Data Broken',err)
+                     return
+                 }
+             }else{
+                 res.end('No Data')
+                 return
+             }
+             if(!d.ke||!d.id||!s.group[d.ke]){
+                 res.end(user.lang['No Group with this key exists'])
+                 return
+             }
+             s.triggerEvent(d)
+             res.end(user.lang['Trigger Successful'])
+         },res,req)
+     })
     /**
     * API : WebHook Tester
      */
@@ -1560,7 +1719,6 @@ module.exports = function(s,config,lang,app,io){
      */
     app.get(config.webPaths.apiPrefix+':auth/control/:ke/:id/:direction', function (req,res){
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             s.cameraControl(req.params,function(resp){
                 res.end(s.prettyPrint(resp))
@@ -1578,7 +1736,6 @@ module.exports = function(s,config,lang,app,io){
     ], function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             if(user.permissions.watch_videos==="0"||user.details.sub&&user.details.allmonitors!=='1'&&user.details.video_delete.indexOf(req.params.id)===-1){
                 res.end(user.lang['Not Permitted'])
@@ -1673,7 +1830,6 @@ module.exports = function(s,config,lang,app,io){
     app.get(config.webPaths.apiPrefix+':auth/probe/:ke',function (req,res){
         req.ret={ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             switch(req.query.action){
     //            case'stop':
@@ -1720,7 +1876,6 @@ module.exports = function(s,config,lang,app,io){
     app.all([config.webPaths.apiPrefix+':auth/onvif/:ke/:id/:action',config.webPaths.apiPrefix+':auth/onvif/:ke/:id/:service/:action'],function (req,res){
         var response = {ok:false};
         res.setHeader('Content-Type', 'application/json');
-        res.header("Access-Control-Allow-Origin",req.headers.origin);
         s.auth(req.params,function(user){
             var errorMessage = function(msg,error){
                 response.ok = false
@@ -1864,5 +2019,14 @@ module.exports = function(s,config,lang,app,io){
             }
             s.closeJsonResponse(res,endData)
         },res,req)
+    })
+    /**
+    * Robots.txt
+    */
+    app.get('/robots.txt', function (req,res){
+        res.on('finish',function(){
+            res.end()
+        })
+        fs.createReadStream(s.mainDirectory + '/web/pages/robots.txt').pipe(res)
     })
 }

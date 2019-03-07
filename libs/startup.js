@@ -9,10 +9,34 @@ module.exports = function(s,config,lang,io){
     console.log('Node.js version : '+execSync("node -v"))
     s.processReady = function(){
         s.systemLog(lang.startUpText5)
+        s.onProcessReadyExtensions.forEach(function(extender){
+            extender(true)
+        })
         process.send('ready')
+    }
+    var checkForTerminalCommands = function(callback){
+        var next = function(){
+            if(callback)callback()
+        }
+        if(!s.isWin){
+            var etcPath = '/etc/shinobisystems/cctv.txt'
+            fs.stat(etcPath,function(err,stat){
+                if(err || !stat){
+                    exec('node '+ s.mainDirectory + '/INSTALL/terminalCommands.js',function(err){
+                        if(err)console.log(err)
+                    })
+                }
+                next()
+            })
+        }else{
+            next()
+        }
     }
     var loadedAccounts = []
     var loadMonitors = function(callback){
+        s.beforeMonitorsLoadedOnStartupExtensions.forEach(function(extender){
+            extender()
+        })
         s.systemLog(lang.startUpText4)
         //preliminary monitor start
         s.sqlQuery('SELECT * FROM Monitors', function(err,monitors) {
@@ -147,6 +171,9 @@ module.exports = function(s,config,lang,io){
             })
         })
     },10000)
+    //hourly check to see if sizePurge has failed to unlock
+    //checks to see if request count is the number of monitors + 10
+    s.checkForStalePurgeLocks()
     //run prerequsite queries, load users and monitors
     if(config.childNodes.mode !== 'child'){
         //sql/database connection with knex
@@ -154,11 +181,13 @@ module.exports = function(s,config,lang,io){
         //run prerequsite queries
         s.preQueries()
         setTimeout(function(){
-            //load administrators (groups)
-            loadAdminUsers(function(){
-                //load monitors (for groups)
-                loadMonitors(function(){
-                    s.processReady()
+            checkForTerminalCommands(function(){
+                //load administrators (groups)
+                loadAdminUsers(function(){
+                    //load monitors (for groups)
+                    loadMonitors(function(){
+                        s.processReady()
+                    })
                 })
             })
         },1500)

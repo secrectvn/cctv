@@ -1,0 +1,143 @@
+<div class="row">
+    <div class="col-md-6">
+        <form class="form-group-group green export">
+            <nav class="navbar navbar-rounded navbar-expand-lg bg-success" style="margin-top:10px">
+                <div class="container">
+                    <div class="collapse navbar-collapse">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="save_config"><p><i class="fa fa-download"></i> <%-lang.Database%> : <%-lang.Export%></p></a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+            <% [
+            'Users',
+            'Monitors',
+            'API',
+            'Videos',
+            'Cloud Videos',
+            'Logs',
+            'Presets',
+            'Files'
+            ].forEach(function(tableName){ %>
+                <div class="form-group">
+                    <label><div><span><%=tableName%></span></div>
+                        <div>
+                            <select class="form-control" tableName="<%=tableName%>">
+                                <option value="0">No</option>
+                                <option value="1" selected=>Yes</option>
+                            </select>
+                        </div>
+                    </label>
+                </div>
+            <% }) %>
+            <input hidden name="tables">
+        </form>
+    </div>
+    <div class="col-md-6">
+        <form class="form-group-group red import">
+            <nav class="navbar navbar-rounded navbar-expand-lg bg-primary" style="margin-top:10px">
+                <div class="container">
+                    <div class="collapse navbar-collapse">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="import_config"><p><i class="fa fa-upload"></i> <%-lang.Database%> : <%-lang.Import%></p></a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+            <div class="form-group">
+                <label><div><span><%=lang['Upload File']%></span></div>
+                    <div>
+                        <input type="file" class="fileToUpload" name="hi">
+                        <input type="file" class="fileToUpload">
+                        <input type="file" class="fileToUpload">
+                        <input type="file" class="fileToUpload">
+                    </div>
+                </label>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    var tableNames = [
+        'Users',
+        'Monitors',
+        'API',
+        'Videos',
+        'Cloud Videos',
+        'Logs',
+        'Files',
+        'Presets',
+    ]
+    $.superBackupDatabase = {}
+    $.superBackupDatabase.e = $('#superBackupDatabase')
+    $.superBackupDatabase.exportForm = $.superBackupDatabase.e.find('form.export')
+    $.superBackupDatabase.importForm = $.superBackupDatabase.e.find('form.import')
+    $(document).ready(function(){
+        $.superBackupDatabase.e.find('.save_config').click(function(){
+            $.superBackupDatabase.exportForm.submit()
+        })
+        $.superBackupDatabase.e.find('.import_config').click(function(){
+            $.superBackupDatabase.importForm.submit()
+        })
+        $.superBackupDatabase.exportForm.submit(function(e){
+            e.preventDefault()
+            var selectedTables = {}
+            $('[tableName]').each(function(){
+                var el = $(this)
+                var tableName = el.attr('tableName')
+                var tableSelected = el.val()
+                selectedTables[tableName] = tableSelected
+            })
+            $.post('<%=originalURL%><%=config.webPaths.superApiPrefix%>'+$user.sessionKey+'/export/system',selectedTables,function(data){
+                var partsOfResponse = []
+                $.each(data.database,function(tableName,rows){
+
+                })
+                var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data))
+                $('#temp').html('<a></a>')
+                    .find('a')
+                    .attr('href',dataStr)
+                    .attr('download','Shinobi_System_Backup_(' + Object.keys(selectedTables).join(',') + ')_' + (new Date()) + '.json')
+                    [0].click()
+            })
+            return false
+        })
+        $.superBackupDatabase.importForm.submit(function(e){
+            e.preventDefault()
+            var el = $(this)
+            var uploadElements = el.find('.fileToUpload')
+            var formdata = new FormData(this);
+            console.log(formdata)
+            // $.each(uploadElements,function(n,v){
+            //     var uploadElement = $(v)
+            //     var fileElement = uploadElement.prop('files')
+            //     if(fileElement.length > 0){
+            //         formdata.append("importData" + n, fileElement[0])
+            //     }
+            // })
+            // try{
+            //     var isPrescribedLayer = true
+            //     var importData = JSON.parse($.superBackupDatabase.importForm.find('textarea').val())
+            //     $.each(tableNames,function(n,tableName){
+            //         if(importData[tableName])isPrescribedLayer = false
+            //     })
+            //     if(isPrescribedLayer == false){
+            //         importData = {database: importData}
+            //     }
+            // }catch(err){
+            //     console.log(err)
+            //     return (new PNotify({text:'JSON is invalid',type:'error'}))
+            // }
+            $.post('<%=originalURL%><%=config.webPaths.superApiPrefix%>'+$user.sessionKey+'/import/system',$(formdata).serializeObject(),function(data){
+                console.log(data)
+                if(data && data.ok)new PNotify({text:'Imported Data',type:'success'})
+            })
+            return false
+        })
+    })
+</script>

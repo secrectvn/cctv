@@ -1,6 +1,6 @@
 -- --------------------------------------------------------
--- Host:                         192.168.88.37
--- Server version:               10.1.25-MariaDB- - Ubuntu 17.04
+-- Host:                         192.168.1.31
+-- Server version:               10.1.30-MariaDB-0ubuntu0.17.10.1 - Ubuntu 17.10
 -- Server OS:                    debian-linux-gnu
 -- HeidiSQL Version:             9.4.0.5125
 -- --------------------------------------------------------
@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS `API` (
   `details` text,
   `time` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Data exporting was unselected.
+-- Dumping structure for table ccio.Cloud Videos
+CREATE TABLE IF NOT EXISTS `Cloud Videos` (
+  `mid` varchar(50) NOT NULL,
+  `ke` varchar(50) DEFAULT NULL,
+  `href` text NOT NULL,
+  `size` float DEFAULT NULL,
+  `time` timestamp NULL DEFAULT NULL,
+  `end` timestamp NULL DEFAULT NULL,
+  `status` int(1) DEFAULT '0' COMMENT '0:Complete,1:Read,2:Archive',
+  `details` text
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Data exporting was unselected.
 -- Dumping structure for table ccio.Events
@@ -100,6 +113,29 @@ CREATE TABLE IF NOT EXISTS `Videos` (
   `status` int(1) DEFAULT '0' COMMENT '0:Building,1:Complete,2:Read,3:Archive',
   `details` text
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Data exporting was unselected.
+-- Dumping structure for table ccio.Files
+CREATE TABLE IF NOT EXISTS `Files` (
+    `ke` varchar(50) NOT NULL,
+    `mid` varchar(50) NOT NULL,
+    `name` tinytext NOT NULL,
+    `size` float NOT NULL DEFAULT '0',
+    `details` text NOT NULL,
+    `status` int(1) NOT NULL DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE `Files`	ADD COLUMN `time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `status`;
+
+-- Data exporting was unselected.
+-- Dumping structure for table ccio.Schedules
+CREATE TABLE IF NOT EXISTS `Schedules` (
+  `ke` varchar(50) DEFAULT NULL,
+  `name` text,
+  `details` text,
+  `start` varchar(10) DEFAULT NULL,
+  `end` varchar(10) DEFAULT NULL,
+  `enabled` int(1) NOT NULL DEFAULT '1'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Data exporting was unselected.
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
