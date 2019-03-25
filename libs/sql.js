@@ -1,4 +1,3 @@
-moment = require('moment')
 module.exports = function(s,config){
     s.onBeforeDatabaseLoadExtensions.forEach(function(extender){
         extender(config)
@@ -8,9 +7,7 @@ module.exports = function(s,config){
       client: config.databaseType,
       connection: config.db,
     }
-    var isSqlite = false
     if(s.databaseOptions.client.indexOf('sqlite')>-1){
-        isSqlite = true
         s.databaseOptions.client = 'sqlite3';
         s.databaseOptions.useNullAsDefault = true;
         try{
@@ -49,8 +46,12 @@ module.exports = function(s,config){
         }
         return newQuery
     }
+    s.getUnixDate = function(value){
+        newValue = new Date(value).valueOf()
+        return newValue
+    }
     s.stringToSqlTime = function(value){
-        newValue = new Date(s.nameToTime(value)).valueOf()
+        newValue = new Date(value.replace('T',' '))
         return newValue
     }
     s.sqlQuery = function(query,values,onMoveOn,hideLog){
@@ -90,9 +91,6 @@ module.exports = function(s,config){
             }
         })
     }
-    s.openDatabaseTable = function(tableName){
-        return s.databaseEngine(tableName)
-    }
     s.connectDatabase = function(){
         s.databaseEngine = require('knex')(s.databaseOptions)
     }
@@ -118,6 +116,13 @@ module.exports = function(s,config){
         },true)
         //add Schedules table, will remove in future
         s.sqlQuery("CREATE TABLE IF NOT EXISTS `Schedules` (`ke` varchar(50) DEFAULT NULL,`name` text,`details` text,`start` varchar(10) DEFAULT NULL,`end` varchar(10) DEFAULT NULL,`enabled` int(1) NOT NULL DEFAULT '1')" + mySQLtail + ';',[],function(err){
+            if(err)console.error(err)
+        },true)
+        //add Timelapses and Timelapse Frames tables, will remove in future
+        s.sqlQuery("CREATE TABLE IF NOT EXISTS `Timelapses` (`ke` varchar(50) NOT NULL,`mid` varchar(50) NOT NULL,`details` longtext,`date` date NOT NULL,`time` timestamp NOT NULL,`end` timestamp NOT NULL,`size` int(11)NOT NULL)" + mySQLtail + ';',[],function(err){
+            if(err)console.error(err)
+        },true)
+        s.sqlQuery("CREATE TABLE IF NOT EXISTS `Timelapse Frames` (`ke` varchar(50) NOT NULL,`mid` varchar(50) NOT NULL,`details` longtext,`filename` varchar(50) NOT NULL,`time` timestamp NULL DEFAULT NULL,`size` int(11) NOT NULL)" + mySQLtail + ';',[],function(err){
             if(err)console.error(err)
         },true)
         //add Cloud Videos table, will remove in future
